@@ -1,6 +1,6 @@
 ##setenv.sh##
 #module load JAVA/jdk1.8.0_31 spark
-export MOUNT=/quobyte/config
+export MOUNT=/nfs
 export SPARK_HOME=$MOUNT/spark
 export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
 export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
@@ -12,7 +12,7 @@ export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
 export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
 export RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
 export CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
-export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=1"
+export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=1 -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
 export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
 export SPARK_DOWNLOAD_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
 export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
@@ -25,7 +25,6 @@ echo "export SLURM_MEM_PER_CPU=$SLURM_MEM_PER_CPU" >> $env
 echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
 echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M' >> $env
 #
-#echo "export ADDRS="nvidia-smi --query-gpu=index --format=csv,noheader | sed -e ':a' -e 'N' -e'$!ba' -e 's/\n/","/g'"" >> $env
 echo "export CUDF_JAR_NAME=$CUDF_JAR_NAME" >> $env
 echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> $env
 echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> $env
