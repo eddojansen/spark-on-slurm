@@ -3,7 +3,7 @@
 #SBATCH --partition=debug
 #SBATCH --ntasks=2
 #SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=3500
+#SBATCH --mem-per-cpu=30100
 #SBATCH --time=60:00
 #SBATCH --output=outfile-%J
  
@@ -27,6 +27,8 @@ then
 else
     echo "getGpusResources.sh exists"
 fi
+
+srun ${MOUNT}/sparkRapidsPlugin/getGpusResources.sh
 
 $SPARK_HOME/sbin/start-all.sh
 . wait-worker.sh
