@@ -3,9 +3,9 @@ export MOUNT=/nfs
 export SPARK_HOME=$MOUNT/spark
 export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
 export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export SPARK_CONF_DIR=/nfs/spark/conf
 mkdir -p $SPARK_CONF_DIR
 mkdir -p $MOUNT/sparkRapidsPlugin
-export SPARK_CONF_DIR=/nfs/spark/conf
 #
 export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
 export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
