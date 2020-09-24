@@ -11,7 +11,7 @@ export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
 export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
 export RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
 export CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
-export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=1 -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=0 -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
 export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
 export SPARK_DOWNLOAD_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
 export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
