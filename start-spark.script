@@ -29,12 +29,12 @@ else
     echo "getGpusResources.sh exists"
 fi
 
-if [ ! -d "$MOUNT/parque/customer" ]
+if [ ! -d "$MOUNT/parquet/customer" ]
 then
     wget -c ${PARQUET_UR} -O - | sudo tar --strip-components=1 --one-top-level=${MOUNT}/parque -xz
     
 else
-    echo "${MOUNT}/parque exists"
+    echo "${MOUNT}/parquet/customer exists"
 fi
 
 $SPARK_HOME/sbin/start-all.sh

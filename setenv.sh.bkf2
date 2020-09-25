@@ -7,16 +7,16 @@ export SPARK_CONF_DIR=/nfs/spark/conf
 #mkdir -p $SPARK_CONF_DIR
 #mkdir -p $MOUNT/sparkRapidsPlugin
 #
-#export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
-#export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
-#export RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
-#export CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
-#export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
+export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
+export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
+export RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
+export CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
+export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
 export SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
-#export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
+export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
 #
 # Set number of GPU's
-#export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=0 -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=0 -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
 #
 export PARQUET_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/100G%20parquet.zip"
 #
@@ -27,20 +27,20 @@ echo "export SLURM_MEM_PER_CPU=$SLURM_MEM_PER_CPU" >> $env
 echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
 echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M' >> $env
 #
-#echo "export CUDF_JAR_NAME=$CUDF_JAR_NAME" >> $env
-#echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> $env
-#echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> $env
-#echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> $env
-#echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> $env
-#echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
+echo "export CUDF_JAR_NAME=$CUDF_JAR_NAME" >> $env
+echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> $env
+echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> $env
+echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> $env
+echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> $env
+echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
 #
 echo "export SPARK_HOME=$SPARK_HOME" > ~/.bashrc
 echo "export JAVA_HOME=$JAVA_HOME" >> ~/.bashrc
 echo "export SPARK_CONF_DIR=$SPARK_CONF_DIR" >> ~/.bashrc
-#echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> ~/.bashrc
-#echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> ~/.bashrc
-#echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> ~/.bashrc
-#echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> ~/.bashrc
+echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> ~/.bashrc
+echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> ~/.bashrc
+echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> ~/.bashrc
+echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> ~/.bashrc
 
 scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_CONF_DIR/slaves
 
@@ -98,8 +98,10 @@ CMDPARAMS="--master $MASTER \
         --num-executors $SLURM_NTASKS \
         --conf spark.cores.max=$(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS )) \
         --conf spark.sql.warehouse.dir=$WAREHOUSE_PATH \
+        --conf spark.task.cpus=1 \
+        --driver-memory ${DRIVER_MEMORY}M \
         --executor-memory $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU-$DRIVER_MEMORY ))M \
-	--driver-memory ${DRIVER_MEMORY}M \
+	--executor-cores $(( $SLURM_NTASKS*$SLURM_CPUS_PER_TASK-$SLURM_CPUS_PER_TASK )) \
         --conf spark.sql.files.maxPartitionBytes=$PARTITIONBYTES \
         --conf spark.sql.autoBroadcastJoinThreshold=$BROADCASTTHRESHOLD \
         --conf spark.sql.shuffle.partitions=$PARTITIONS \
@@ -108,4 +110,6 @@ CMDPARAMS="--master $MASTER \
         --conf spark.network.timeout=3600s \
         --conf spark.storage.blockManagerSlaveTimeoutMs=3600s \
         --conf spark.sql.broadcastTimeout=2000 \
+        --conf spark.executor.extraClassPath=${SPARK_CUDF_JAR}:${SPARK_RAPIDS_PLUGIN_JAR}:/opt/ucx/lib \
+        --conf spark.driver.extraClassPath=${SPARK_CUDF_JAR}:${SPARK_RAPIDS_PLUGIN_JAR}:/opt/ucx/lib \
         $S3PARAMS"
