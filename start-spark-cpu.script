@@ -1,0 +1,45 @@
+#!/bin/bash
+
+#SBATCH --partition=debug
+#SBATCH --ntasks=2
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=3500
+#SBATCH --time=60:00
+#SBATCH --output=outfile-%J
+ 
+. setenv-cpu.sh
+
+mkdir -p $SPARK_CONF_DIR
+mkdir -p $MOUNT/parquet
+
+if [ ! -d "$SPARK_HOME/sbin" ]
+then
+    wget -c ${SPARK_URL} -O - | sudo tar --strip-components=1 --one-top-level=${SPARK_HOME} -xz
+else
+    echo "${SPARK_HOME} exists"
+fi
+
+sudo chown -R $(id -u):$(id -g) ${MOUNT}/spark
+
+
+if [ ! -d "$MOUNT/parquet/customer" ]
+then
+    wget -c ${PARQUET_UR} -O - | sudo tar --strip-components=1 --one-top-level=${MOUNT}/parque -xz
+    
+else
+    echo "${MOUNT}/parquet/customer exists"
+fi
+
+$SPARK_HOME/sbin/start-all.sh
+. wait-worker.sh
+ 
+
+$SPARK_HOME/bin/spark-submit $CMDPARAMS \
+        --class ai.rapids.spark.examples.tpcxbb.Main \
+        bbsql_apps-0.2.2-SNAPSHOT.jar --xpu=CPU \
+        --query="$QUERY" \
+        --input="$INPUT_PATH" \
+        --output="${OUTPUT_PATH}-cpu/$QUERY"
+
+#sleep infinity
+$SPARK_HOME/sbin/stop-all.sh

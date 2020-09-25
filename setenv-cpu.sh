@@ -1,4 +1,4 @@
-##setenv.sh##
+##setenv-cpu.sh##
 export MOUNT=/nfs
 export SPARK_HOME=$MOUNT/spark
 export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
@@ -27,7 +27,6 @@ echo "spark.executor.cores" $SLURM_CPUS_PER_TASK >> $conf
 echo "spark.executor.memory" $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU ))M >> $conf
 
 ## BBSQL
-
 DRIVER_MEMORY=10240
 QUERY="Q5"
 PARTITIONBYTES='512M'
@@ -38,11 +37,11 @@ JARS=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
 
 ## INPUT_PATH="s3a://path_to_data/data/parquet"
 INPUT_PATH="file:///$MOUNT/parquet"
-mkdir -p $INPUT_PATH
+mkdir -p $MOUNT/parquet
 
 ## OUTPUT_PATH="s3a://path_to_output/output"
 OUTPUT_PATH="file:///$MOUNT/results"
-mkdir -p $OUTPUT_PATH
+mkdir -p $MOUNT/results
 
 ## WAREHOUSE_PATH="s3a://path_to_warehouse/warehouse"
 WAREHOUSE_PATH="file:///tmp"
