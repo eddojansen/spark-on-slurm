@@ -58,8 +58,11 @@ export PARTITIONBYTES="512M"
 export PARTITIONS="600"
 export BROADCASTTHRESHOLD="512M"
 export NUM_EXECUTOR_CORES=$(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))
-export RESOURCE_GPU_AMT=$(( $CONCURRENTGPU * $SLURM_NTASKS / $NUM_EXECUTOR_CORES ))
 
+#export RESOURCE_GPU_AMT=$(( $CONCURRENTGPU * $SLURM_NTASKS / $NUM_EXECUTOR_CORES ))
+
+#export RESOURCE_GPU_AMT=`echo - | awk '{print $SLURM_NTASKS / $NUM_EXECUTOR_CORES}'`
+export RESOURCE_GPU_AMT=`echo "scale=3; $CONCURRENTGPU * $SLURM_NTASKS / $NUM_EXECUTOR_CORES" | bc`
 # If you don't have UCX in your environment select 0 for all your runs
 # 1 for rc, 2 for tcp, 0 for no ucx
 export UCX_SELECT='0'
