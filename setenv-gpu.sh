@@ -1,40 +1,21 @@
 ##setenv-gpu.sh##
-export GPU_PER_NODE='1'
-export MOUNT=/nfs
-export SPARK_HOME=$MOUNT/spark
-export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
-export SPARK_CONF_DIR=/nfs/spark/conf
-#
-export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
-export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
-export RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
-export CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
-export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
-export SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
-export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
-export CONCURRENTGPU=$GPU_PER_NODE
-export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$CONCURRENTGPU -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
-#
-export PARQUET_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/100G%20parquet.zip"
-#
-env=$SPARK_CONF_DIR/spark-env.sh
+
+env=$SPARK_HOME/conf/spark-env.sh
 echo "export SPARK_LOG_DIR=$SPARK_HOME/log" > $env
 echo "export SPARK_WORKER_DIR=$SPARK_HOME/sparkworker" >> $env
 echo "export SLURM_MEM_PER_CPU=$SLURM_MEM_PER_CPU" >> $env
 echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
 echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M' >> $env
-#
+
 echo "export CUDF_JAR_NAME=$CUDF_JAR_NAME" >> $env
 echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> $env
 echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> $env
 echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> $env
 echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> $env
 echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
-#
+
 echo "export SPARK_HOME=$SPARK_HOME" > ~/.bashrc
 echo "export JAVA_HOME=$JAVA_HOME" >> ~/.bashrc
-echo "export SPARK_CONF_DIR=$SPARK_CONF_DIR" >> ~/.bashrc
 echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> ~/.bashrc
 echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> ~/.bashrc
 echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> ~/.bashrc
@@ -43,45 +24,25 @@ echo "export CONCURRENTGPU=$CONCURRENTGPU" >> ~/.bashrc
 
 scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_CONF_DIR/slaves
 
-conf=$SPARK_CONF_DIR/spark-defaults.conf
+conf=$SPARK_HOME/conf/spark-defaults.conf
 echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf
 echo "spark.submit.deployMode" client >> $conf
 echo "spark.master" spark://`hostname`:7077 >> $conf
 echo "spark.executor.cores" $SLURM_CPUS_PER_TASK >> $conf
 echo "spark.executor.memory" $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU ))M >> $conf
 
-## BBSQL
-
-export DRIVER_MEMORY="10240"
-export QUERY="Q5"
-export PARTITIONBYTES="512M"
-export PARTITIONS="600"
-export BROADCASTTHRESHOLD="512M"
-export NUM_EXECUTOR_CORES=$(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))
-
-#export RESOURCE_GPU_AMT=$(( $CONCURRENTGPU * $SLURM_NTASKS / $NUM_EXECUTOR_CORES ))
-
-#export RESOURCE_GPU_AMT=`echo - | awk '{print $SLURM_NTASKS / $NUM_EXECUTOR_CORES}'`
-export RESOURCE_GPU_AMT=`echo "scale=3; $CONCURRENTGPU * $SLURM_NTASKS / $NUM_EXECUTOR_CORES" | bc`
-# If you don't have UCX in your environment select 0 for all your runs
-# 1 for rc, 2 for tcp, 0 for no ucx
-export UCX_SELECT='0'
-
-export JARS=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
-
-## INPUT_PATH="s3a://path_to_data/data/parquet"
-export INPUT_PATH="file:///$MOUNT/parquet"
-
-## OUTPUT_PATH="s3a://path_to_output/output"
-export OUTPUT_PATH="file:///$MOUNT/results"
-
-## WAREHOUSE_PATH="s3a://path_to_warehouse/warehouse"
-export WAREHOUSE_PATH="file:///tmp"
-
 export MASTER="spark://`hostname`:7077"
 
 export HISTORYPARAMS="--conf spark.eventLog.enabled=true \
-        --conf spark.eventLog.dir=file:$SPARK_HOME/history"
+       --conf spark.eventLog.dir=file:$SPARK_HOME/history"
+
+QUERY_SPECIAL_PARAMS=""
+if [ $QUERY == "Q24" ];then
+      export QUERY_SPECIAL_PARAMS="--conf spark.rapids.sql.hasNans=false"
+fi
+if [ $QUERY == "Q12" ];then
+        export QUERY_SPECIAL_PARAMS="--conf spark.rapids.sql.batchSizeBytes=512mb --conf spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version=2"
+fi
 
 export S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=$S3A_CREDS_USR \
         --conf spark.hadoop.fs.s3a.secret.key=$S3A_CREDS_PSW \

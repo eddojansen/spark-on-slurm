@@ -6,10 +6,34 @@
 #SBATCH --mem-per-cpu=3500
 #SBATCH --time=60:00
 #SBATCH --output=outfile-%J
- 
-. setenv-cpu.sh
+#
+export MOUNT=/nfs
+export SPARK_HOME=$MOUNT/spark
+export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz" 
 
-mkdir -p $SPARK_CONF_DIR
+## BBSQL
+export DRIVER_MEMORY='10240'
+export QUERY='Q5'
+export PARTITIONBYTES='512M'
+export PARTITIONS='600'
+export BROADCASTTHRESHOLD='512M'
+
+export JARS=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
+
+## INPUT_PATH="s3a://path_to_data/data/parquet"
+export INPUT_PATH="file:///$MOUNT/parquet"
+
+## OUTPUT_PATH="s3a://path_to_output/output"
+export OUTPUT_PATH="file:///$MOUNT/results"
+
+## WAREHOUSE_PATH="s3a://path_to_warehouse/warehouse"
+export WAREHOUSE_PATH="file:///tmp"
+
+echo "SLURM_NTASKS $SLURM_NTASKS"
+echo "NUM_EXECUTOR_CORES $NUM_EXECUTOR_CORES"
+
 mkdir -p $MOUNT/parquet
 mkdir -p $MOUNT/results
 
@@ -31,10 +55,12 @@ else
     echo "${MOUNT}/parquet/customer exists"
 fi
 
+. setenv-cpu.sh
+
 $SPARK_HOME/sbin/start-all.sh
+
 . wait-worker.sh
  
-
 $SPARK_HOME/bin/spark-submit $CMDPARAMS \
         --class ai.rapids.spark.examples.tpcxbb.Main \
         bbsql_apps-0.2.2-SNAPSHOT.jar --xpu=CPU \
