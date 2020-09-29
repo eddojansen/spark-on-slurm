@@ -27,31 +27,29 @@ echo "spark.executor.cores" $SLURM_CPUS_PER_TASK >> $conf
 echo "spark.executor.memory" $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU ))M >> $conf
 
 ## BBSQL
-DRIVER_MEMORY=10240
-QUERY="Q5"
-PARTITIONBYTES='512M'
-PARTITIONS='600'
-BROADCASTTHRESHOLD='512M'
+export DRIVER_MEMORY='10240'
+export QUERY='Q5'
+export PARTITIONBYTES='512M'
+export PARTITIONS='600'
+export BROADCASTTHRESHOLD='512M'
 
-JARS=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
+export JARS=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
 
 ## INPUT_PATH="s3a://path_to_data/data/parquet"
-INPUT_PATH="file:///$MOUNT/parquet"
-mkdir -p $MOUNT/parquet
+export INPUT_PATH="file:///$MOUNT/parquet"
 
 ## OUTPUT_PATH="s3a://path_to_output/output"
-OUTPUT_PATH="file:///$MOUNT/results"
-mkdir -p $MOUNT/results
+export OUTPUT_PATH="file:///$MOUNT/results"
 
 ## WAREHOUSE_PATH="s3a://path_to_warehouse/warehouse"
-WAREHOUSE_PATH="file:///tmp"
+export WAREHOUSE_PATH="file:///tmp"
 
-MASTER="spark://`hostname`:7077"
+export MASTER="spark://`hostname`:7077"
 
-HISTORYPARAMS="--conf spark.eventLog.enabled=true \
+export HISTORYPARAMS="--conf spark.eventLog.enabled=true \
         --conf spark.eventLog.dir=file:$SPARK_HOME/history"
 
-S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=$S3A_CREDS_USR \
+export S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=$S3A_CREDS_USR \
         --conf spark.hadoop.fs.s3a.secret.key=$S3A_CREDS_PSW \
         --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
         --conf spark.hadoop.fs.s3a.endpoint=$S3_ENDPOINT \
@@ -65,13 +63,12 @@ S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=$S3A_CREDS_USR \
         --conf spark.sql.hive.metastorePartitionPruning=true \
         --conf spark.hadoop.fs.s3a.connection.ssl.enabled=true"
 
-CMDPARAMS="--master $MASTER \
+export CMDPARAMS="--master $MASTER \
         --deploy-mode client \
         --jars $JARS \
         --num-executors $SLURM_NTASKS \
         --conf spark.cores.max=$(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS )) \
         --conf spark.sql.warehouse.dir=$WAREHOUSE_PATH \
-        --executor-memory $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU-$DRIVER_MEMORY ))M \
 	--driver-memory ${DRIVER_MEMORY}M \
         --conf spark.sql.files.maxPartitionBytes=$PARTITIONBYTES \
         --conf spark.sql.autoBroadcastJoinThreshold=$BROADCASTTHRESHOLD \

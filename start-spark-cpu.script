@@ -11,6 +11,7 @@
 
 mkdir -p $SPARK_CONF_DIR
 mkdir -p $MOUNT/parquet
+mkdir -p $MOUNT/results
 
 if [ ! -d "$SPARK_HOME/sbin" ]
 then
@@ -24,7 +25,7 @@ sudo chown -R $(id -u):$(id -g) ${MOUNT}/spark
 
 if [ ! -d "$MOUNT/parquet/customer" ]
 then
-    wget -c ${PARQUET_UR} -O - | sudo tar --strip-components=1 --one-top-level=${MOUNT}/parque -xz
+    wget -c ${PARQUET_UR} -O - | sudo tar --strip-components=1 --one-top-level=${MOUNT}/parquet -xz
     
 else
     echo "${MOUNT}/parquet/customer exists"
