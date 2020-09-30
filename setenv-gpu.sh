@@ -22,7 +22,7 @@ echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> ~/.bashrc
 echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> ~/.bashrc
 echo "export CONCURRENTGPU=$CONCURRENTGPU" >> ~/.bashrc
 
-scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_CONF_DIR/slaves
+scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_HOME/conf/slaves
 
 conf=$SPARK_HOME/conf/spark-defaults.conf
 echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf

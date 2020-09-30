@@ -10,7 +10,7 @@ echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M'
 echo "export SPARK_HOME=$SPARK_HOME" > ~/.bashrc
 echo "export JAVA_HOME=$JAVA_HOME" >> ~/.bashrc
 
-scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_CONF_DIR/slaves
+scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_HOME/conf/slaves
 
 conf=$SPARK_HOME/conf/spark-defaults.conf
 echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf

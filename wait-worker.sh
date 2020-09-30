@@ -1,6 +1,6 @@
 ##wait-worker.sh##
-. $SPARK_CONF_DIR/spark-env.sh
-num_workers=`cat $SPARK_CONF_DIR/slaves|wc -l`
+. $SPARK_HOME/conf/spark-env.sh
+num_workers=`cat $SPARK_HOME/conf/slaves|wc -l`
 echo number of workers to be registered: $num_workers
 master_logfile=`ls -tr ${SPARK_LOG_DIR}/*master* |tail -1`
 worker_logfiles=`ls -tr ${SPARK_LOG_DIR}/*worker* |tail -$num_workers`
