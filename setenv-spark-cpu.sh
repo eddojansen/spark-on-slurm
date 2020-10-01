@@ -1,4 +1,7 @@
-##setenv-spark-cpu.sh##
+##setenv-spark.sh##
+
+## Set concurrent GPU's meaning the amount of GPU's per node
+export CONCURRENTGPU='0'
 
 ## Set the mountpoint used for spark installation and bbsql dataset
 export MOUNT=/nfs
@@ -11,10 +14,10 @@ export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
 export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
 export RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
 export CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
-#export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
+export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
 export SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
 export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
-#export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$CONCURRENTGPU -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$CONCURRENTGPU -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
 
 mkdir -p $MOUNT/sparkRapidsPlugin
 
@@ -24,14 +27,15 @@ then
 else
     echo "${SPARK_HOME} exists"
 fi
+
 sudo chown -R $(id -u):$(id -g) ${MOUNT}/spark
 
-#if [ ! -f "${MOUNT}/sparkRapidsPlugin/getGpusResources.sh" ]
-#then
-#    wget -P ${MOUNT}/sparkRapidsPlugin -c ${GET_CPU_RES_URL} && chmod +x ${MOUNT}/sparkRapidsPlugin/getGpusResources.sh
-#else
-#    echo "getGpusResources.sh exists"
-#fi
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/getGpusResources.sh" ]
+then
+    wget -P ${MOUNT}/sparkRapidsPlugin -c ${GET_CPU_RES_URL} && chmod +x ${MOUNT}/sparkRapidsPlugin/getGpusResources.sh
+else
+    echo "getGpusResources.sh exists"
+fi
 
 if [ ! -f "${MOUNT}/sparkRapidsPlugin/${CUDF_JAR_NAME}" ]
 then
@@ -59,8 +63,8 @@ echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> $env
 echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> $env
 echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> $env
 echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> $env
-#echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
-#echo "export CONCURRENTGPU=$CONCURRENTGPU" >> $env
+echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
+echo "export CONCURRENTGPU=$CONCURRENTGPU" >> $env
 
 echo "export SPARK_HOME=$SPARK_HOME" > ~/.bashrc
 echo "export JAVA_HOME=$JAVA_HOME" >> ~/.bashrc

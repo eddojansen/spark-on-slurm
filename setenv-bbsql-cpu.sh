@@ -6,6 +6,7 @@ export DRIVER_MEMORY='10240'
 export PARTITIONBYTES='512M'
 export PARTITIONS='600'
 export BROADCASTTHRESHOLD='512M'
+export TOTAL_CORES=$((${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS}))
 
 ## INPUT_PATH="s3a://path_to_data/data/parquet"
 export INPUT_PATH="file:///$MOUNT/parquet"
@@ -22,8 +23,8 @@ JARS_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/rapids-4-spark-int
 BBSQL_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/bbsql_apps-0.2.2-SNAPSHOT.jar"
 PARQUET_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/1gb-parquet.tar"
 
-export JARS=${MOUNT}/bbsql/${JARS_JAR_NAME}
-export BBSQL=${MOUNT}/bbsql/${BBSQL_JAR_NAME}
+export JARS=${MOUNT}/bbsql/$JARS_JAR_NAME
+export BBSQL=${MOUNT}/bbsql/$BBSQL_JAR_NAME
 
 if [ ! -f "${BBSQL}" ]
 then
@@ -60,15 +61,15 @@ export S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=$S3A_CREDS_USR \
         --conf spark.sql.hive.metastorePartitionPruning=true \
         --conf spark.hadoop.fs.s3a.connection.ssl.enabled=true"
 
-export CMDPARAMS="--master ${MASTER} \
+export CMDPARAM="--master $MASTER \
         --deploy-mode client \
-        --jars ${JARS} \
-        --num-executors ${SLURM_NTASKS} \
-        --conf spark.cores.max=$(( ${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS} )) \
-        --conf spark.sql.warehouse.dir=${WAREHOUSE_PATH} \
-        --conf spark.task.cpus=1 \
+        --jars $JARS \
+        --num-executors $SLURM_NTASKS \
+        --conf spark.cores.max=$(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS )) \
+        --conf spark.sql.warehouse.dir=$WAREHOUSE_PATH \
         --driver-memory ${DRIVER_MEMORY}M \
-        --executor-memory $(( ${SLURM_CPUS_PER_TASK}*${SLURM_MEM_PER_CPU} ))M \
+	--conf spark.task.cpus=1 \
+        --executor-memory $(( $SLURM_CPUS_PER_TASK * $SLURM_MEM_PER_CPU ))M \
         --conf spark.sql.files.maxPartitionBytes=$PARTITIONBYTES \
         --conf spark.sql.autoBroadcastJoinThreshold=$BROADCASTTHRESHOLD \
         --conf spark.sql.shuffle.partitions=$PARTITIONS \
@@ -77,7 +78,5 @@ export CMDPARAMS="--master ${MASTER} \
         --conf spark.network.timeout=3600s \
         --conf spark.storage.blockManagerSlaveTimeoutMs=3600s \
         --conf spark.sql.broadcastTimeout=2000 \
-        --conf spark.executor.extraClassPath=${SPARK_CUDF_JAR}:${SPARK_RAPIDS_PLUGIN_JAR}:/opt/ucx/lib \
-        --conf spark.driver.extraClassPath=${SPARK_CUDF_JAR}:${SPARK_RAPIDS_PLUGIN_JAR}:/opt/ucx/lib \
         $S3PARAMS"
 

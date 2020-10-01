@@ -1,4 +1,4 @@
-##setenv-spark-gpu.sh##
+##setenv-spark.sh##
 
 ## Set concurrent GPU's meaning the amount of GPU's per node
 export CONCURRENTGPU='1'
