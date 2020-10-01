@@ -1,28 +1,43 @@
 ##setenv-bbsql-gpu.sh##
 
 ## BBSQL
-QUERY='Q5'
-DRIVER_MEMORY='10240'
-PARTITIONBYTES='512M'
-PARTITIONS='600'
-BROADCASTTHRESHOLD='512M'
-TOTAL_CORES=$((${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS}))
-RESOURCE_GPU_AMT=$(echo "scale=3; ${CONCURRENTGPU} * ${SLURM_NTASKS} / $TOTAL_CORES" | bc)
-JARS=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
-BBJAR=bbsql_apps-0.2.2-SNAPSHOT.jar
+export QUERY='Q5'
+export DRIVER_MEMORY='10240'
+export PARTITIONBYTES='512M'
+export PARTITIONS='600'
+export BROADCASTTHRESHOLD='512M'
+export TOTAL_CORES=$((${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS}))
+export RESOURCE_GPU_AMT=$(echo "scale=3; ${CONCURRENTGPU} * ${SLURM_NTASKS} / $TOTAL_CORES" | bc)
 
 ## INPUT_PATH="s3a://path_to_data/data/parquet"
-INPUT_PATH="file:///$MOUNT/parquet"
+export INPUT_PATH="file:///$MOUNT/parquet"
 
 ## OUTPUT_PATH="s3a://path_to_output/output"
-OUTPUT_PATH="file:///$MOUNT/results"
+export OUTPUT_PATH="file:///$MOUNT/results"
 
 ## WAREHOUSE_PATH="s3a://path_to_warehouse/warehouse"
-WAREHOUSE_PATH="file:///tmp"
+export WAREHOUSE_PATH="file:///tmp"
 
-if [ ! -d "$MOUNT/parquet/customer" ]
+JARS_JAR_NAME=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
+BBSQL_JAR_NAME=bbsql_apps-0.2.2-SNAPSHOT.jar
+JARS_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar"
+BBSQL_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/bbsql_apps-0.2.2-SNAPSHOT.jar"
+PARQUET_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/1gb-parquet.tar"
+
+export JARS=${MOUNT}/bbsql/$JARS_JAR_NAME
+export BBSQL=${MOUNT}/bbsql/$BBSQL_JAR_NAME
+
+if [ ! -f "${BBSQL}" ]
 then
-    wget -c ${PARQUET_UR} -O - | sudo tar --strip-components=1 --one-top-level=${MOUNT}/parquet -xz
+    mkdir -p ${MOUNT}/bbsql && wget -P ${MOUNT}/bbsql -c ${BBSQL_URL} && wget -P ${MOUNT}/bbsql -c ${JARS_URL}
+
+else
+    echo "${BBSQL} exists"
+fi
+
+if [ ! -d "${MOUNT}/parquet/customer" ]
+then
+    wget -c ${PARQUET_URL} -O - | sudo tar --strip-components=1 --one-top-level=${MOUNT}/parquet -x
 
 else
     echo "${MOUNT}/parquet/customer exists"
@@ -47,9 +62,7 @@ export S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=$S3A_CREDS_USR \
         --conf spark.sql.hive.metastorePartitionPruning=true \
         --conf spark.hadoop.fs.s3a.connection.ssl.enabled=true"
 
-echo "Running query $QUERY maxPartitionBytes:$PARTITIONBYTES autoBroadcastThreshold:$BROADCASTTHRESHOLD shuffle_partition:$PARTITIONS concurrentGpu:$CONCURRENTGPU"
-
-CMDPARAM="--master $MASTER \
+export CMDPARAM="--master $MASTER \
         --deploy-mode client \
         --jars $JARS \
         --num-executors $SLURM_NTASKS \
@@ -74,7 +87,7 @@ CMDPARAM="--master $MASTER \
         --conf spark.rapids.memory.gpu.pooling.enabled=true \
         --conf spark.rapids.memory.pinnedPool.size=8g \
         --conf spark.rapids.sql.incompatibleOps.enabled=true \
-        --conf spark.executor.extraJavaOptions=`'-Dai.rapids.cudf.nvtx.enabled=true -Dai.rapids.cudf.prefer-pinned=true -Dai.rapids.spark.semaphore.enabled=true'` \
+        --conf spark.executor.extraJavaOptions='"-Dai.rapids.cudf.nvtx.enabled=true -Dai.rapids.cudf.prefer-pinned=true -Dai.rapids.spark.semaphore.enabled=true"' \
         --conf spark.rapids.sql.explain=ALL \
         --conf spark.executor.resource.gpu.amount=1 \
         --conf spark.task.resource.gpu.amount=$RESOURCE_GPU_AMT \
@@ -83,6 +96,3 @@ CMDPARAM="--master $MASTER \
         --conf spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS \
         $S3PARAMS"
 
-echo $CONCURRENTGPU
-echo ${SPARK_RAPIDS_PLUGIN_JAR}
-echo $RESOURCE_GPU_AMT

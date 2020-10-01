@@ -19,33 +19,6 @@ export SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-
 export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
 export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$CONCURRENTGPU -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
 
-env=$SPARK_HOME/conf/spark-env.sh
-echo "export SPARK_LOG_DIR=$SPARK_HOME/log" > $env
-echo "export SPARK_WORKER_DIR=$SPARK_HOME/sparkworker" >> $env
-echo "export SLURM_MEM_PER_CPU=$SLURM_MEM_PER_CPU" >> $env
-echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
-echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M' >> $env
-
-echo "export CUDF_JAR_NAME=$CUDF_JAR_NAME" >> $env
-echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> $env
-echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> $env
-echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> $env
-echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> $env
-echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
-echo "export CONCURRENTGPU=$CONCURRENTGPU" >> $env
-
-echo "export SPARK_HOME=$SPARK_HOME" > ~/.bashrc
-echo "export JAVA_HOME=$JAVA_HOME" >> ~/.bashrc
-
-scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_HOME/conf/slaves
-
-conf=$SPARK_HOME/conf/spark-defaults.conf
-echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf
-echo "spark.submit.deployMode" client >> $conf
-echo "spark.master" spark://`hostname`:7077 >> $conf
-echo "spark.executor.cores" $SLURM_CPUS_PER_TASK >> $conf
-echo "spark.executor.memory" $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU ))M >> $conf
-
 mkdir -p $MOUNT/sparkRapidsPlugin
 
 if [ ! -d "$SPARK_HOME/sbin" ]
@@ -77,5 +50,32 @@ then
 else
     echo "${RAPIDS_JAR_NAME} exists"
 fi
+
+env=$SPARK_HOME/conf/spark-env.sh
+echo "export SPARK_LOG_DIR=$SPARK_HOME/log" > $env
+echo "export SPARK_WORKER_DIR=$SPARK_HOME/sparkworker" >> $env
+echo "export SLURM_MEM_PER_CPU=$SLURM_MEM_PER_CPU" >> $env
+echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
+echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M' >> $env
+
+echo "export CUDF_JAR_NAME=$CUDF_JAR_NAME" >> $env
+echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> $env
+echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> $env
+echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> $env
+echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> $env
+echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
+echo "export CONCURRENTGPU=$CONCURRENTGPU" >> $env
+
+echo "export SPARK_HOME=$SPARK_HOME" > ~/.bashrc
+echo "export JAVA_HOME=$JAVA_HOME" >> ~/.bashrc
+
+scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_HOME/conf/slaves
+
+conf=$SPARK_HOME/conf/spark-defaults.conf
+echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf
+echo "spark.submit.deployMode" client >> $conf
+echo "spark.master" spark://`hostname`:7077 >> $conf
+echo "spark.executor.cores" $SLURM_CPUS_PER_TASK >> $conf
+echo "spark.executor.memory" $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU ))M >> $conf
 
 

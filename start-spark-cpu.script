@@ -4,14 +4,9 @@
 #SBATCH --ntasks=2
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=3500
-#SBATCH --time=2:00
+#SBATCH --time=60:00
 #SBATCH --output=outfile-%J
-#
-export MOUNT=/nfs
-export SPARK_HOME=$MOUNT/spark
-export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
-export SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz" 
+##SBATCH --gpus-per-node=1
 
 . setenv-spark-cpu.sh
 
@@ -19,11 +14,18 @@ $SPARK_HOME/sbin/start-all.sh
 
 . wait-worker.sh
 
-## Spark jobs
-
 . setenv-bbsql-cpu.sh
 
-echo $BBSQLCMDPARAMS
-$SPARK_HOME/bin/spark-submit $BBSQLCMDPARAMS
+echo $BBSQL
+echo $CMDPARAM
 
+$SPARK_HOME/bin/spark-submit --verbose \
+        $CMDPARAM \
+        --class ai.rapids.spark.examples.tpcxbb.Main \
+        $BBSQL --xpu=CPU \
+        --query="$QUERY" \
+        --input="$INPUT_PATH" \
+        --output="${OUTPUT_PATH}-cpu/$QUERY" 
+
+#sleep infinity
 $SPARK_HOME/sbin/stop-all.sh
