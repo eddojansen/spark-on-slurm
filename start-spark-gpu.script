@@ -1,128 +1,69 @@
 #!/bin/bash
 
 #SBATCH --partition=debug
-#SBATCH --ntasks=4
+#SBATCH --ntasks=2
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=3500
 #SBATCH --time=60:00
 #SBATCH --output=outfile-%J
 ##SBATCH --gpus-per-node=1
 
-# Set concurrent GPU's meaning the amount of GPU's per node
-export CONCURRENTGPU='1'
-# Set the mountpoint used for spark installation and bbsql dataset
-export MOUNT=/nfs
-export SPARK_HOME=$MOUNT/spark
-export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
-export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
-export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
-export RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
-export CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
-export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
-export SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
-export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
-export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$CONCURRENTGPU -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+## Set concurrent GPU's meaning the amount of GPU's per node
+##export CONCURRENTGPU='1'
 
-export PARQUET_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/100G%20parquet.zip"
+## Set the mountpoint used for spark installation and bbsql dataset
+##export MOUNT=/nfs
+##export SPARK_HOME=$MOUNT/spark
+##export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
+##export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+##export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
 
-## BBSQL
-export DRIVER_MEMORY="10240"
-export QUERY="Q5"
-export PARTITIONBYTES="512M"
-export PARTITIONS="600"
-export BROADCASTTHRESHOLD="512M"
-export NUM_EXECUTOR_CORES=$(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))
-export RESOURCE_GPU_AMT=`echo "scale=3; $CONCURRENTGPU * $SLURM_NTASKS / $NUM_EXECUTOR_CORES" | bc`
+## Update JAR names and download URL's
+##export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
+##export RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
+##export CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
+##export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
+##export SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
+##export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
+##export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$CONCURRENTGPU -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
 
-# If you don't have UCX in your environment select 0 for all your runs
-# 1 for rc, 2 for tcp, 0 for no ucx
-export UCX_SELECT='0'
-
-export JARS=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
-
-## INPUT_PATH="s3a://path_to_data/data/parquet"
-export INPUT_PATH="file:///$MOUNT/parquet"
-
-## OUTPUT_PATH="s3a://path_to_output/output"
-export OUTPUT_PATH="file:///$MOUNT/results"
-
-## WAREHOUSE_PATH="s3a://path_to_warehouse/warehouse"
-export WAREHOUSE_PATH="file:///tmp"
-
-echo "CONCURRENTGPU $CONCURRENTGPU"
-echo "SLURM_NTASKS $SLURM_NTASKS"
-echo "NUM_EXECUTOR_CORES $NUM_EXECUTOR_CORES"
-echo "RESOURCE_GPU_AMT $RESOURCE_GPU_AMT"
-
-mkdir -p $MOUNT/sparkRapidsPlugin
-mkdir -p $MOUNT/parquet
-mkdir -p $MOUNT/results
-
-if [ ! -d "$SPARK_HOME/sbin" ]
-then
-    wget -c ${SPARK_URL} -O - | sudo tar --strip-components=1 --one-top-level=${SPARK_HOME} -xz
-else
-    echo "${SPARK_HOME} exists"
-fi
-
-sudo chown -R $(id -u):$(id -g) ${MOUNT}/spark
-
-if [ ! -f "${MOUNT}/sparkRapidsPlugin/getGpusResources.sh" ]
-then
-    wget -P ${MOUNT}/sparkRapidsPlugin -c ${GET_CPU_RES_URL} && chmod +x ${MOUNT}/sparkRapidsPlugin/getGpusResources.sh
-else
-    echo "getGpusResources.sh exists"
-fi
-
-if [ ! -f "${MOUNT}/sparkRapidsPlugin/${CUDF_JAR_NAME}" ]
-then
-    wget -P ${MOUNT}/sparkRapidsPlugin -c ${CUDF_FILES_URL}
-else
-    echo "${CUDF_JAR_NAME} exists"
-fi
-
-if [ ! -f "${MOUNT}/sparkRapidsPlugin/${RAPIDS_JAR_NAME}" ]
-then
-    wget -P ${MOUNT}/sparkRapidsPlugin -c ${RAPIDS_PLUGIN_URL}
-else
-    echo "${RAPIDS_JAR_NAME} exists"
-fi
-
-if [ ! -d "$MOUNT/parquet/customer" ]
-then
-    wget -c ${PARQUET_UR} -O - | sudo tar --strip-components=1 --one-top-level=${MOUNT}/parquet -xz
-
-else
-    echo "${MOUNT}/parquet/customer exists"
-fi
-
-. setenv-gpu.sh
+. setenv-spark-gpu.sh
 
 $SPARK_HOME/sbin/start-all.sh
+
 . wait-worker.sh
 
-$SPARK_HOME/bin/spark-submit $CMDPARAMS \
+## BBSQL
+##export QUERY=Q5
+##export DRIVER_MEMORY='10240'
+##export PARTITIONBYTES='512M'
+##export PARTITIONS='600'
+##export BROADCASTTHRESHOLD='512M'
+##export RESOURCE_GPU_AMT=`echo "scale=3; $CONCURRENTGPU * $SLURM_NTASKS / $NUM_EXECUTOR_CORES" | bc`
+##export RESOURCE_GPU_AMT='0.125'
+##export JARS=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
+##export BBJAR=bbsql_apps-0.2.2-SNAPSHOT.jar
+
+## INPUT_PATH="s3a://path_to_data/data/parquet"
+##export INPUT_PATH="file:///$MOUNT/parquet"
+
+## OUTPUT_PATH="s3a://path_to_output/output"
+##export OUTPUT_PATH="file:///$MOUNT/results"
+
+## WAREHOUSE_PATH="s3a://path_to_warehouse/warehouse"
+##export WAREHOUSE_PATH="file:///tmp"
+
+. setenv-bbsql-gpu.sh
+
+echo $CMDPARAM
+
+$SPARK_HOME/bin/spark-submit --verbose \
+        $CMDPARAM \
         --class ai.rapids.spark.examples.tpcxbb.Main \
-        --conf spark.rapids.sql.variableFloatAgg.enabled=true \
-        --conf spark.plugins=com.nvidia.spark.SQLPlugin \
-        --conf spark.rapids.sql.concurrentGpuTasks=$CONCURRENTGPU \
-        --conf spark.rapids.memory.gpu.pooling.enabled=true \
-        --conf spark.rapids.memory.pinnedPool.size=8g \
-        --conf spark.rapids.sql.incompatibleOps.enabled=true \
-        --conf spark.executor.extraJavaOptions='-Dai.rapids.cudf.nvtx.enabled=true -Dai.rapids.cudf.prefer-pinned=true -Dai.rapids.spark.semaphore.enabled=true' \
-        --conf spark.rapids.sql.explain=ALL \
-        --conf spark.executor.resource.gpu.amount=1 \
-        --conf spark.task.resource.gpu.amount=$RESOURCE_GPU_AMT \
-        --conf spark.rapids.sql.batchSizeByte=512M \
-        --conf spark.sql.parquet.read.allocation.size=64M \
-        --conf spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS \
-        $UCX_PARAMS \
-        $QUERY_SPECIAL_PARAMS \
-        bbsql_apps-0.2.2-SNAPSHOT.jar --xpu=GPU \
+        $BBJAR --xpu=GPU \
         --query="$QUERY" \
         --input="$INPUT_PATH" \
-        --output="${OUTPUT_PATH}-gpu/$QUERY"
+        --output="${OUTPUT_PATH}-gpu/$QUERY" 
 
 #sleep infinity
 $SPARK_HOME/sbin/stop-all.sh

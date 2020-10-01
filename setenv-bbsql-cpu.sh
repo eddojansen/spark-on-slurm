@@ -1,23 +1,4 @@
-##setenv-cpu.sh##
-
-env=$SPARK_HOME/conf/spark-env.sh
-echo "export SPARK_LOG_DIR=$SPARK_HOME/log" > $env
-echo "export SPARK_WORKER_DIR=$SPARK_HOME/sparkworker" >> $env
-echo "export SLURM_MEM_PER_CPU=$SLURM_MEM_PER_CPU" >> $env
-echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
-echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M' >> $env
-
-echo "export SPARK_HOME=$SPARK_HOME" > ~/.bashrc
-echo "export JAVA_HOME=$JAVA_HOME" >> ~/.bashrc
-
-scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_HOME/conf/slaves
-
-conf=$SPARK_HOME/conf/spark-defaults.conf
-echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf
-echo "spark.submit.deployMode" client >> $conf
-echo "spark.master" spark://`hostname`:7077 >> $conf
-echo "spark.executor.cores" $SLURM_CPUS_PER_TASK >> $conf
-echo "spark.executor.memory" $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU ))M >> $conf
+##setenv-bbsql-cpu.sh##
 
 ## BBSQL
 export DRIVER_MEMORY='10240'
@@ -27,6 +8,7 @@ export PARTITIONS='600'
 export BROADCASTTHRESHOLD='512M'
 
 export JARS=rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar
+export BBJAR=bbsql_apps-0.2.2-SNAPSHOT.jar
 
 ## INPUT_PATH="s3a://path_to_data/data/parquet"
 export INPUT_PATH="file:///$MOUNT/parquet"
@@ -36,6 +18,14 @@ export OUTPUT_PATH="file:///$MOUNT/results"
 
 ## WAREHOUSE_PATH="s3a://path_to_warehouse/warehouse"
 export WAREHOUSE_PATH="file:///tmp"
+
+if [ ! -d "$MOUNT/parquet/customer" ]
+then
+    wget -c ${PARQUET_UR} -O - | sudo tar --strip-components=1 --one-top-level=${MOUNT}/parquet -xz
+
+else
+    echo "${MOUNT}/parquet/customer exists"
+fi
 
 export MASTER="spark://`hostname`:7077"
 
@@ -56,13 +46,13 @@ export S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=$S3A_CREDS_USR \
         --conf spark.sql.hive.metastorePartitionPruning=true \
         --conf spark.hadoop.fs.s3a.connection.ssl.enabled=true"
 
-export CMDPARAMS="--master $MASTER \
+export BBSQLCMDPARAMS="--master $MASTER \
         --deploy-mode client \
         --jars $JARS \
         --num-executors $SLURM_NTASKS \
         --conf spark.cores.max=$(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS )) \
         --conf spark.sql.warehouse.dir=$WAREHOUSE_PATH \
-	--driver-memory ${DRIVER_MEMORY}M \
+        --driver-memory ${DRIVER_MEMORY}M \
         --conf spark.sql.files.maxPartitionBytes=$PARTITIONBYTES \
         --conf spark.sql.autoBroadcastJoinThreshold=$BROADCASTTHRESHOLD \
         --conf spark.sql.shuffle.partitions=$PARTITIONS \
@@ -71,4 +61,10 @@ export CMDPARAMS="--master $MASTER \
         --conf spark.network.timeout=3600s \
         --conf spark.storage.blockManagerSlaveTimeoutMs=3600s \
         --conf spark.sql.broadcastTimeout=2000 \
-        $S3PARAMS"
+	--class ai.rapids.spark.examples.tpcxbb.Main \
+        $S3PARAMS \
+        $BBJAR --xpu=CPU \
+        --query="$QUERY" \
+        --input="$INPUT_PATH" \
+        --output="${OUTPUT_PATH}-cpu/$QUERY""
+
