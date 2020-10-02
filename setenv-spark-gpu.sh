@@ -1,4 +1,4 @@
-##setenv-spark.sh##
+##setenv-spark-gpu.sh##
 
 ## Set concurrent GPU's meaning the amount of GPU's per node
 export CONCURRENTGPU='1'
@@ -9,15 +9,15 @@ export SPARK_HOME=$MOUNT/spark
 export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
 export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
+export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$CONCURRENTGPU -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
 
 ## Update JAR names and download URL's
-export CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
-export RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
-export CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
-export GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
-export SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
-export RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
-export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$CONCURRENTGPU -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
+RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
+CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
+GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
+SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
+RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
 
 mkdir -p $MOUNT/sparkRapidsPlugin
 

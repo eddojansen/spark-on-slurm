@@ -24,8 +24,8 @@ JARS_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/rapids-4-spark-int
 BBSQL_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/bbsql_apps-0.2.2-SNAPSHOT.jar"
 PARQUET_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/1gb-parquet.tar"
 
-export JARS=${MOUNT}/bbsql/$JARS_JAR_NAME
-export BBSQL=${MOUNT}/bbsql/$BBSQL_JAR_NAME
+export JARS=${MOUNT}/bbsql/${JARS_JAR_NAME}
+export BBSQL=${MOUNT}/bbsql/${BBSQL_JAR_NAME}
 
 if [ ! -f "${BBSQL}" ]
 then
@@ -70,7 +70,7 @@ export CMDPARAM="--master $MASTER \
         --conf spark.sql.warehouse.dir=$WAREHOUSE_PATH \
         --driver-memory ${DRIVER_MEMORY}M \
 	--conf spark.task.cpus=1 \
-        --executor-memory $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU ))M \
+        --executor-memory $(( $SLURM_CPUS_PER_TASK * $SLURM_MEM_PER_CPU ))M \
         --conf spark.sql.files.maxPartitionBytes=$PARTITIONBYTES \
         --conf spark.sql.autoBroadcastJoinThreshold=$BROADCASTTHRESHOLD \
         --conf spark.sql.shuffle.partitions=$PARTITIONS \
@@ -87,7 +87,6 @@ export CMDPARAM="--master $MASTER \
         --conf spark.rapids.memory.gpu.pooling.enabled=true \
         --conf spark.rapids.memory.pinnedPool.size=8g \
         --conf spark.rapids.sql.incompatibleOps.enabled=true \
-        --conf spark.executor.extraJavaOptions='"-Dai.rapids.cudf.nvtx.enabled=true -Dai.rapids.cudf.prefer-pinned=true -Dai.rapids.spark.semaphore.enabled=true"' \
         --conf spark.rapids.sql.explain=ALL \
         --conf spark.executor.resource.gpu.amount=1 \
         --conf spark.task.resource.gpu.amount=$RESOURCE_GPU_AMT \
