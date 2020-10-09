@@ -4,10 +4,10 @@
 export QUERY='Q5'
 export DRIVER_MEMORY='10240'
 export PARTITIONBYTES='512M'
-export PARTITIONS='600'
+export PARTITIONS='100'
 export BROADCASTTHRESHOLD='512M'
-export TOTAL_CORES=$((${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS}))
-export RESOURCE_GPU_AMT=$(echo "scale=3; ${CONCURRENTGPU} * ${SLURM_NTASKS} / $TOTAL_CORES" | bc)
+#export TOTAL_CORES=$((${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS}))
+#export RESOURCE_GPU_AMT=$(echo "scale=3; 2 * ${SLURM_NTASKS} / $TOTAL_CORES" | bc)
 
 ## INPUT_PATH="s3a://path_to_data/data/parquet"
 export INPUT_PATH="file:///$MOUNT/parquet"
@@ -65,12 +65,11 @@ export S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=$S3A_CREDS_USR \
 export CMDPARAM="--master $MASTER \
         --deploy-mode client \
         --jars $JARS \
-        --num-executors $SLURM_NTASKS \
-        --conf spark.cores.max=$(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS )) \
+        --num-executors $NUM_EXECUTORS \
+        --conf spark.cores.max=$(( ${SLURM_CPUS_PER_TASK} * ${SLURM_JOB_NUM_NODES} )) \
         --conf spark.sql.warehouse.dir=$WAREHOUSE_PATH \
         --driver-memory ${DRIVER_MEMORY}M \
 	--conf spark.task.cpus=1 \
-        --executor-memory $(( $SLURM_CPUS_PER_TASK * $SLURM_MEM_PER_CPU ))M \
         --conf spark.sql.files.maxPartitionBytes=$PARTITIONBYTES \
         --conf spark.sql.autoBroadcastJoinThreshold=$BROADCASTTHRESHOLD \
         --conf spark.sql.shuffle.partitions=$PARTITIONS \
