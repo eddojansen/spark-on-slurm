@@ -11,13 +11,12 @@ export TOTAL_CORES=$((${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS}))
 export RESOURCE_GPU_AMT=$(echo "scale=3; ${SLURM_GPUS} / ${TOTAL_CORES}" | bc)
 export NUM_EXECUTORS=$SLURM_GPUS
 export EXECUTOR_MEMORY=$((( $SLURM_CPUS_PER_TASK * $SLURM_MEM_PER_CPU / $RESOURCE_GPU_AMOUNT)))M
-#export NUM_EXECUTORS=$(( ${RESOURCE_GPU_AMOUNT} * ${SLURM_JOB_NUM_NODES} ))
-export SPARK_HOME=$MOUNT/spark
-export SPARK_LOG_DIR=$SPARK_HOME/log
-export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
 export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$RESOURCE_GPU_AMOUNT -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+#export NUM_EXECUTORS=$(( ${RESOURCE_GPU_AMOUNT} * ${SLURM_JOB_NUM_NODES} ))
+export SPARK_HOME=$MOUNT/spark
+export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 
 ## Update JAR names and download URL's
 CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
@@ -60,11 +59,11 @@ else
 fi
 
 env=$SPARK_HOME/conf/spark-env.sh
-echo "export SPARK_LOG_DIR=$SPARK_HOME/log" > $env
-echo "export SPARK_WORKER_DIR=$SPARK_HOME/sparkworker" >> $env
+echo "export SPARK_LOG_DIR=$SPARK_LOG_DIR" > $env
+echo "export SPARK_WORKER_DIR=$SPARK_WORKER_DIR" >> $env
 echo "export SLURM_MEM_PER_CPU=$SLURM_MEM_PER_CPU" >> $env
-#echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
-#echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M' >> $env
+echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
+echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M' >> $env
 
 echo "export CUDF_JAR_NAME=$CUDF_JAR_NAME" >> $env
 echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> $env
@@ -74,16 +73,18 @@ echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> $env
 echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
 
 sudo chmod +x $SPARK_HOME/conf/spark-env.sh
+echo "export SPARK_HOME=$MOUNT/spark" > ~/.bashrc
+echo "export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"  >> ~/.bashrc
+echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> ~/.bashrc
 
-echo "export SPARK_HOME=$SPARK_HOME" > ~/.bashrc
-echo "export JAVA_HOME=$JAVA_HOME" >> ~/.bashrc
-echo "export SPARK_LOG_DIR=$SPARK_LOG_DIR"  >> ~/.bashrc
 scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_HOME/conf/slaves
 
 conf=$SPARK_HOME/conf/spark-defaults.conf
-echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf
+echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS )) > $conf
 echo "spark.submit.deployMode" client >> $conf
 echo "spark.master" spark://`hostname`:7077 >> $conf
 echo "spark.executor.cores" $((${TOTAL_CORES}/${NUM_EXECUTORS})) >> $conf
+echo "spark.executor.cores" $SLURM_CPUS_PER_TASK >> $conf
 echo "spark.executor.memory" $EXECUTOR_MEMORY >> $conf
+echo "spark.executor.memory" $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU ))M >> $conf
 

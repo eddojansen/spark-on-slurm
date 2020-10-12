@@ -2,10 +2,10 @@
 . $SPARK_HOME/conf/spark-env.sh
 num_workers=`cat $SPARK_HOME/conf/slaves|wc -l`
 echo number of workers to be registered: $num_workers
-master_logfile=`ls -tr ${SPARK_LOG_DIR}/*master* |tail -1`
-worker_logfiles=`ls -tr ${SPARK_LOG_DIR}/*worker* |tail -$num_workers`
+master_logfile=`ls -tr ${SPARK_HOME}/log/*deploy.master* |tail -1`
+worker_logfiles=`ls -tr ${SPARK_HOME}/log/*deploy.worker*.out |tail -$num_workers`
 steptime=3
-for i in {1..30}
+for i in {1..100}
 do
   sleep $steptime
   num_reg=` grep 'registered' $worker_logfiles|wc -l`

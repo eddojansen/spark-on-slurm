@@ -1,16 +1,23 @@
 #!/bin/bash
 
+#  ntasks per node MUST be one, because multiple slaves per work doesn't
+#  work well with slurm + spark in this script (they would need increasing
+#  ports among other things)
+
+#SBATCH --ntasks-per-node=1
+#SBATCH --nodes=2
 #SBATCH --output=outfile-%J
 #SBATCH --partition=batch
-#SBATCH --nodes=2
-#SBATCH --ntasks=2
 #SBATCH --cpus-per-task=16
-#SBATCH --mem-per-cpu=3500
+#SBATCH --mem-per-cpu=3000
 #SBATCH --time=60:00
 #SBATCH --gpus=8
 
+set -x
+
 . setenv-spark-gpu.sh
 
+echo "SPARK_CONF_DIR $SPARK_CONF_DIR"
 echo "RESOURCE_GPU_AMOUNT $RESOURCE_GPU_AMOUNT"
 echo "TOTAL_CORES $TOTAL_CORES"
 echo "RESOURCE_GPU_AMT $RESOURCE_GPU_AMT"
@@ -27,15 +34,16 @@ echo "SLURM_NTASKS $SLURM_NTASKS"
 ## test
 #sleep infinity
 
+echo "***Starting workers***"
 $SPARK_HOME/sbin/start-all.sh
 
-echo "Waiting for workers"
+echo "***Waiting for workers***"
 . wait-worker.sh
 
-echo "Set environment for bbsql"
+echo "***Set environment for bbsql***"
 . setenv-bbsql-gpu.sh
 
-echo "Submit workload to Spark"
+echo "***Submit workload to Spark***"
 
 $SPARK_HOME/bin/spark-submit --verbose \
         $CMDPARAM \
@@ -47,5 +55,5 @@ $SPARK_HOME/bin/spark-submit --verbose \
         --output="${OUTPUT_PATH}-gpu/$QUERY" 
 
 #sleep infinity
-echo "All done, stop everything"
+echo "***All done, stop everything***"
 $SPARK_HOME/sbin/stop-all.sh
