@@ -1,29 +1,23 @@
-##setenv-spark-gpu.sh##
-set -x
+##setenv-spark-cpu.sh##
+
+## Set concurrent GPU's meaning the amount of GPU's per node
+export CONCURRENTGPU='0'
+
 ## Set the mountpoint used for spark installation and bbsql dataset
 export MOUNT=/nfs
-
-## Set concurrent GPU's meaning the amount threads per GPU
-export CONCURRENTGPU='4'
-
-export GPU_PER_NODE=$(( ${SLURM_GPUS} / ${SLURM_JOB_NUM_NODES} ))
-export TOTAL_CORES=$(( ${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS} ))
-export NUM_EXECUTORS=$SLURM_GPUS
-export NUM_EXECUTOR_CORES=$(( ${TOTAL_CORES} / ${NUM_EXECUTORS} ))
-export RESOURCE_GPU_AMT=$(echo "scale=3; ${NUM_EXECUTORS} / ${TOTAL_CORES}" | bc)
 export SPARK_HOME=$MOUNT/spark
 export PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
 export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
-export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$GPU_PER_NODE -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$CONCURRENTGPU -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
 
 ## Update JAR names and download URL's
+CUDF_JAR_NAME="cudf-0.14-cuda10-1.jar"
+RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.1.0.jar"
+CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.14/cudf-0.14-cuda10-1.jar"
 GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
-CUDF_JAR_NAME="cudf-0.15-cuda11.jar"
-RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.2.0.jar"
-CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.15/cudf-0.15-cuda11.jar"
 SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
-RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.2.0/rapids-4-spark_2.12-0.2.0.jar"
+RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.1.0/rapids-4-spark_2.12-0.1.0.jar"
 
 mkdir -p $MOUNT/sparkRapidsPlugin
 
@@ -70,6 +64,7 @@ echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> $env
 echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> $env
 echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> $env
 echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
+echo "export CONCURRENTGPU=$CONCURRENTGPU" >> $env
 
 echo "export SPARK_HOME=$SPARK_HOME" > ~/.bashrc
 echo "export JAVA_HOME=$JAVA_HOME" >> ~/.bashrc
@@ -80,5 +75,7 @@ conf=$SPARK_HOME/conf/spark-defaults.conf
 echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf
 echo "spark.submit.deployMode" client >> $conf
 echo "spark.master" spark://`hostname`:7077 >> $conf
-echo "spark.executor.cores" $NUM_EXECUTOR_CORES >> $conf
-echo "spark.executor.memory" $((( $SLURM_CPUS_PER_TASK * $SLURM_MEM_PER_CPU / $GPU_PER_NODE )))M >> $conf
+echo "spark.executor.cores" $SLURM_CPUS_PER_TASK >> $conf
+echo "spark.executor.memory" $(( $SLURM_CPUS_PER_TASK*$SLURM_MEM_PER_CPU ))M >> $conf
+
+

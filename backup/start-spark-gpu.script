@@ -1,0 +1,55 @@
+#!/bin/bash
+
+#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks=2
+#SBATCH --output=outfile-%J
+#SBATCH --partition=batch
+#SBATCH --cpus-per-task=16
+#SBATCH --mem-per-cpu=2048M
+#SBATCH --time=60:00
+#SBATCH --gpus=8
+
+set -x
+
+. setenv-spark-gpu.sh
+
+echo "SPARK_CONF_DIR $SPARK_CONF_DIR"
+echo "RESOURCE_GPU_AMOUNT $RESOURCE_GPU_AMOUNT"
+echo "TOTAL_CORES $TOTAL_CORES"
+echo "RESOURCE_GPU_AMT $RESOURCE_GPU_AMT"
+echo "NUM_EXECUTORS $NUM_EXECUTORS"
+echo "NUM_EXECUTOR_CORES $NUM_EXECUTOR_CORES"
+echo "EXECUTOR_MEMORY $EXECUTOR_MEMORY"
+echo "SPARK_HOME $SPARK_HOME"
+echo "WORKER_OPT $WORKER_OPTS"
+echo "SLURM_GPUS $SLURM_GPUS"
+echo "SLURM_CPUS_PER_TASK $SLURM_CPUS_PER_TASK"
+echo "SLURM_JOB_NUM_NODES $SLURM_JOB_NUM_NODES"
+echo "SLURM_NTASKS $SLURM_NTASKS"
+
+## test
+#sleep infinity
+
+echo "***Starting workers***"
+$SPARK_HOME/sbin/start-all.sh
+
+echo "***Waiting for workers***"
+. wait-worker.sh
+
+echo "***Set environment for bbsql***"
+. setenv-bbsql-gpu.sh
+
+echo "***Submit workload to Spark***"
+
+$SPARK_HOME/bin/spark-submit --verbose \
+        $CMDPARAM \
+	--conf spark.executor.extraJavaOptions="-Dai.rapids.cudf.nvtx.enabled=true -Dai.rapids.cudf.prefer-pinned=true -Dai.rapids.spark.semaphore.enabled=true" \
+        --class ai.rapids.spark.examples.tpcxbb.Main \
+        $BBSQL --xpu=GPU \
+        --query="$QUERY" \
+        --input="$INPUT_PATH" \
+        --output="${OUTPUT_PATH}-gpu/$QUERY" 
+
+#sleep infinity
+echo "***All done, stop everything***"
+$SPARK_HOME/sbin/stop-all.sh
