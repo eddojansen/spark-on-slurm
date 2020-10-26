@@ -1,0 +1,120 @@
++ GET_CPU_RES_URL=https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh
++ CUDF_JAR_NAME=cudf-0.15-cuda11.jar
++ RAPIDS_JAR_NAME=rapids-4-spark_2.12-0.2.0.jar
++ CUDF_FILES_URL=https://repo1.maven.org/maven2/ai/rapids/cudf/0.15/cudf-0.15-cuda11.jar
++ SPARK_URL=https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz
++ RAPIDS_PLUGIN_URL=https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.2.0/rapids-4-spark_2.12-0.2.0.jar
++ export MOUNT=/data
++ MOUNT=/data
++ export CONCURRENTGPU=4
++ CONCURRENTGPU=4
+++ hostname
++ export MASTER=spark://ejansen-worker1:7077
++ MASTER=spark://ejansen-worker1:7077
++ export SPARK_HOME=/data/spark
++ SPARK_HOME=/data/spark
++ export SPARK_LOG_DIR=/data/spark/log
++ SPARK_LOG_DIR=/data/spark/log
++ export SPARK_CONF_DIR=/data/spark/conf
++ SPARK_CONF_DIR=/data/spark/conf
++ export SPARK_WORKER_DIR=/data/spark/sparkworker
++ SPARK_WORKER_DIR=/data/spark/sparkworker
++ export SPARK_WORKER_LOG=/data/spark/log
++ SPARK_WORKER_LOG=/data/spark/log
+++ nproc
++ export SPARK_WORKER_CORES=16
++ SPARK_WORKER_CORES=16
++ export SPARK_WORKER_MEMORY=49152M
++ SPARK_WORKER_MEMORY=49152M
++ export GPU_PER_NODE=4
++ GPU_PER_NODE=4
++ export TOTAL_CORES=32
++ TOTAL_CORES=32
++ export NUM_EXECUTORS=8
++ NUM_EXECUTORS=8
++ export NUM_EXECUTOR_CORES=4
++ NUM_EXECUTOR_CORES=4
+++ echo 250
+++ sed 's/...$/.&/'
++ export RESOURCE_GPU_AMT=.250
++ RESOURCE_GPU_AMT=.250
++ export SPARK_RAPIDS_DIR=/data/sparkRapidsPlugin
++ SPARK_RAPIDS_DIR=/data/sparkRapidsPlugin
++ export SPARK_RAPIDS_PLUGIN_JAR=/data/sparkRapidsPlugin/rapids-4-spark_2.12-0.2.0.jar
++ SPARK_RAPIDS_PLUGIN_JAR=/data/sparkRapidsPlugin/rapids-4-spark_2.12-0.2.0.jar
++ export SPARK_CUDF_JAR=/data/sparkRapidsPlugin/cudf-0.15-cuda11.jar
++ SPARK_CUDF_JAR=/data/sparkRapidsPlugin/cudf-0.15-cuda11.jar
++ export 'WORKER_OPTS=-Dspark.worker.resource.gpu.amount=4 -Dspark.worker.resource.gpu.discoveryScript=/data/sparkRapidsPlugin/getGpusResources.sh'
++ WORKER_OPTS='-Dspark.worker.resource.gpu.amount=4 -Dspark.worker.resource.gpu.discoveryScript=/data/sparkRapidsPlugin/getGpusResources.sh'
++ '[' '!' -d /data/spark/sbin ']'
++ echo '/data/spark exists'
+/data/spark exists
++ sudo mkdir -p /data/spark/log
+++ id -u
+++ id -g
++ sudo chown -R 1001:1002 /data/spark
++ '[' '!' -f /data/sparkRapidsPlugin/getGpusResources.sh ']'
++ echo 'getGpusResources.sh exists'
+getGpusResources.sh exists
++ '[' '!' -f /data/sparkRapidsPlugin/cudf-0.15-cuda11.jar ']'
++ echo 'cudf-0.15-cuda11.jar exists'
+cudf-0.15-cuda11.jar exists
++ '[' '!' -f /data/sparkRapidsPlugin/rapids-4-spark_2.12-0.2.0.jar ']'
++ echo 'rapids-4-spark_2.12-0.2.0.jar exists'
+rapids-4-spark_2.12-0.2.0.jar exists
++ srun -pdebug --ntasks=2 bash -c 'echo -n '\''Clearing cache on '\'' && hostname && sync && sudo /sbin/sysctl vm.drop_caches=3'
+Clearing cache on ejansen-worker1
+vm.drop_caches = 3
+Clearing cache on ejansen-worker2
+vm.drop_caches = 3
++ scontrol show hostname 'ejansen-worker[1-2]'
++ env=/data/spark/conf/spark-env.sh
++ echo 'export MOUNT=/data'
++ echo 'export CONCURRENTGPU=4'
++ echo 'export MASTER=spark://ejansen-worker1:7077'
++ echo 'export SPARK_HOME=/data/spark'
++ echo 'export SPARK_LOG_DIR=/data/spark/log'
++ echo 'export SPARK_CONF_DIR=/data/spark/conf'
++ echo 'export SPARK_WORKER_DIR=/data/spark/sparkworker'
++ echo 'export SPARK_WORKER_LOG=/data/spark/log'
++ echo 'export SPARK_WORKER_CORES=16'
++ echo 'export SPARK_WORKER_MEMORY=49152M'
++ echo 'export GPU_PER_NODE=4'
++ echo 'export TOTAL_CORES=32'
++ echo 'export NUM_EXECUTORS=8'
++ echo 'export NUM_EXECUTOR_CORES=4'
++ echo 'export RESOURCE_GPU_AMT=.250'
++ echo 'export SPARK_RAPIDS_PLUGIN_JAR=/data/sparkRapidsPlugin/rapids-4-spark_2.12-0.2.0.jar'
++ echo 'export SPARK_CUDF_JAR=/data/sparkRapidsPlugin/cudf-0.15-cuda11.jar'
++ echo 'export WORKER_OPTS='\''-Dspark.worker.resource.gpu.amount=4 -Dspark.worker.resource.gpu.discoveryScript=/data/sparkRapidsPlugin/getGpusResources.sh'\'''
++ conf=/data/spark/conf/spark-defaults.conf
++ echo spark.default.parallelism 32
++ echo spark.submit.deployMode client
+++ hostname
++ echo spark.master spark://ejansen-worker1:7077
++ echo spark.executor.cores 4
++ echo spark.executor.memory 12288M
++ echo spark.driver.memory 10g
+spark.driver.memory 10g
+++ hostname
++ srun -pdebug -n 1 -N 1 --gpus=0 -w ejansen-worker1 docker run -dit -e SPARK_HOME=/data/spark -e SPARK_CONF_DIR=/data/spark/conf -v /data:/data -v /data/spark/log:/log --network host --name master --rm gcr.io/data-science-enterprise/spark-master:3.0.1
+55a91e87f967d73a23c4bfdc3fd2154defb9295c1518fbc8373563d6f299b751
+++ nproc
++ srun -pdebug -n 2 --ntasks-per-node=1 docker run -dit -e MASTER=spark://ejansen-worker1:7077 -e SPARK_HOME=/data/spark -e SPARK_CONF_DIR=/data/spark/conf -e RESOURCE_GPU_AMT=.250 -e SPARK_WORKER_DIR=/data/spark/sparkworker -e SPARK_WORKER_CORES=16 -e SPARK_WORKER_MEMORY=49152M -e 'SPARK_WORKER_OPTS=-Dspark.worker.resource.gpu.amount=4 -Dspark.worker.resource.gpu.discoveryScript=/data/sparkRapidsPlugin/getGpusResources.sh' -e SPARK_RAPIDS_PLUGIN_JAR=/data/sparkRapidsPlugin/rapids-4-spark_2.12-0.2.0.jar -e SPARK_CUDF_JAR=/data/sparkRapidsPlugin/cudf-0.15-cuda11.jar -v /data:/data -v /data/spark/log:/log --network host --name worker --rm gcr.io/data-science-enterprise/spark-worker:3.0.1
+c787114b7e4c3e8211c97a66f8f259e98137205a9da100c696153a8829c740b9
+58d02ba91b9ff042fd980ba63b7a8ef5c2e38d6905d25e0c9999c1b91cd33c8d
+++ hostname
+++ hostname
++ srun -pdebug -n 1 -N 1 --gpus=0 -w ejansen-worker1 bash -c echo ejansen-worker1
+
++ /data/spark/sbin/wait-worker.sh
+number of workers to be registered: 2
+registered workers after 9 seconds : 2
++ echo 'All workers registered!'
+All workers registered!
++ echo 'test complete'
+test complete
++ sleep infinity
+++ nproc
++ srun -pdebug -n 1 -N 1 --gpus=0 docker run -dit -e MOUNT=/data -e MASTER=spark://ejansen-worker1:7077 -e SPARK_HOME=/data/spark -e SPARK_CONF_DIR=/data/spark/conf -e RESOURCE_GPU_AMT=.250 -e SPARK_WORKER_DIR=/data/spark/sparkworker -e SPARK_WORKER_CORES=16 -e SPARK_WORKER_MEMORY=49152M -e 'SPARK_WORKER_OPTS=-Dspark.worker.resource.gpu.amount=4 -Dspark.worker.resource.gpu.discoveryScript=/data/sparkRapidsPlugin/getGpusResources.sh' -e SPARK_RAPIDS_PLUGIN_JAR=/data/sparkRapidsPlugin/rapids-4-spark_2.12-0.2.0.jar -e SPARK_CUDF_JAR=/data/sparkRapidsPlugin/cudf-0.15-cuda11.jar -v /data:/data -v /data/spark/log:/log --network host --name bbsql --rm gcr.io/data-science-enterprise/spark-submit:0.1 bash
+5ccfbaa083ab6e60034e2299ffb592391624184c6948209761896701b1afa574

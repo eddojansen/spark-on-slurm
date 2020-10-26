@@ -1,0 +1,156 @@
+#!/bin/bash
+#SBATCH --output=outfile-%J
+#SBATCH --partition=batch
+#SBATCH --nodes=1
+#SBATCH --mem-per-cpu=3072
+##SBATCH --ntasks-per-node=1
+##SBATCH --ntasks=2
+##SBATCH --cpus-per-task=16
+##SBATCH --time=60:00
+##SBATCH --gpus=8
+
+set -eux
+
+## Date Format
+DATESTAMP=${DATESTAMP:-`date +'%y%m%d%H%M%S'`}
+
+## Data, container and volumes
+CONT=${CONT:-"gcr.io/data-science-enterprise/spark:3.0.1"}
+MOUNT=${MOUNT:-"/nfs"} 
+LOGDIR=${LOGDIR:-"/nfs/log"}
+
+# Other vars
+#readonly _logfile_base="${LOGDIR}/${DATESTAMP}"
+#readonly _cont_name=spark
+#readonly _cont_mounts="${MOUNT}:/opt/
+_logfile_base="${LOGDIR}/${DATESTAMP}"
+_cont_name="spark_${SLURM_JOB_ID}"
+_cont_mounts="${MOUNT}:/opt/"
+
+sudo mkdir -p ${LOGDIR}
+sudo chown -R $(id -u):$(id -g) ${LOGDIR}
+
+## Docker params
+#export VOLS="-v $DATADIR:/data -v $LOGDIR:/results"
+#export CONTNAME="${SLURM_JOB_ID}"
+
+## Set concurrent GPU's meaning the amount threads per GPU
+CONCURRENTGPU='4'
+GPU_PER_NODE=$(( ${SLURM_GPUS} / ${SLURM_JOB_NUM_NODES} ))
+TOTAL_CORES=$(( ${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS} ))
+NUM_EXECUTORS=$SLURM_GPUS
+NUM_EXECUTOR_CORES=$(( ${TOTAL_CORES} / ${NUM_EXECUTORS} ))
+RESOURCE_GPU_AMT=$(echo "scale=3; ${NUM_EXECUTORS} / ${TOTAL_CORES}" | bc)
+SPARK_HOME=$MOUNT/spark
+PATH=$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin
+JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
+WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$GPU_PER_NODE -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+
+## Update JAR names and download URL's
+GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
+CUDF_JAR_NAME="cudf-0.15-cuda11.jar"
+RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.2.0.jar"
+CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.15/cudf-0.15-cuda11.jar"
+SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
+RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.2.0/rapids-4-spark_2.12-0.2.0.jar"
+
+mkdir -p $MOUNT/sparkRapidsPlugin
+
+if [ ! -d "$SPARK_HOME/sbin" ]
+then
+    wget -c ${SPARK_URL} -O - | sudo tar --strip-components=1 --one-top-level=${SPARK_HOME} -xz
+else
+    echo "${SPARK_HOME} exists"
+fi
+
+sudo chown -R $(id -u):$(id -g) ${MOUNT}/spark
+
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/getGpusResources.sh" ]
+then
+    wget -P ${MOUNT}/sparkRapidsPlugin -c ${GET_CPU_RES_URL} && chmod +x ${MOUNT}/sparkRapidsPlugin/getGpusResources.sh
+else
+    echo "getGpusResources.sh exists"
+fi
+
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/${CUDF_JAR_NAME}" ]
+then
+    wget -P ${MOUNT}/sparkRapidsPlugin -c ${CUDF_FILES_URL}
+else
+    echo "${CUDF_JAR_NAME} exists"
+fi
+
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/${RAPIDS_JAR_NAME}" ]
+then
+    wget -P ${MOUNT}/sparkRapidsPlugin -c ${RAPIDS_PLUGIN_URL}
+else
+    echo "${RAPIDS_JAR_NAME} exists"
+fi
+
+env=$SPARK_HOME/conf/spark-env.sh
+echo "export SPARK_LOG_DIR=$SPARK_HOME/log" > $env
+echo "export SPARK_WORKER_DIR=$SPARK_HOME/sparkworker" >> $env
+echo "export SLURM_MEM_PER_CPU=$SLURM_MEM_PER_CPU" >> $env
+echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
+echo 'export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES*$SLURM_MEM_PER_CPU ))M' >> $env
+
+echo "export CUDF_JAR_NAME=$CUDF_JAR_NAME" >> $env
+echo "export RAPIDS_JAR_NAME=$RAPIDS_JAR_NAME" >> $env
+echo "export SPARK_RAPIDS_DIR=$SPARK_RAPIDS_DIR" >> $env
+echo "export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME" >> $env
+echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME" >> $env
+echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
+
+echo "export SPARK_HOME=$SPARK_HOME" >> $env
+echo "export JAVA_HOME=$JAVA_HOME" >> $env
+
+scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_HOME/conf/slaves
+
+conf=$SPARK_HOME/conf/spark-defaults.conf
+echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf
+echo "spark.submit.deployMode" client >> $conf
+echo "spark.master" spark://`hostname`:7077 >> $conf
+echo "spark.executor.cores" $NUM_EXECUTOR_CORES >> $conf
+echo "spark.executor.memory" $((( $SLURM_CPUS_PER_TASK * $SLURM_MEM_PER_CPU / $GPU_PER_NODE )))M >> $conf
+
+#####
+##MASTER_IP=`getent hosts \`hostname\` | cut -d ' ' -f1`
+##export hosts=( `scontrol show hostname |tr "\n" " "` )
+##unique_hosts=( $(echo "${hosts[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ' ) )
+##export MASTER_HOST=${hosts[0]}
+
+## Prepull container to shared storage
+echo "****mkdir -p ${MOUNT}/containers" |& tee "${_logfile_base}_${SLURM_JOBID}.log****"
+mkdir -p ${MOUNT}/containers |& tee "${_logfile_base}_${SLURM_JOBID}.log"
+CONT_FILE="${MOUNT}/containers/${SLURM_JOBID}_$(basename ${CONT}).squashfs"
+srun --exclusive --nodes=1 enroot import --output ${CONT_FILE} dockerd://${CONT} |& tee "${_logfile_base}_${SLURM_JOBID}.log"
+##echo "****srun --enroot import --output ${CONT_FILE} dockerd://${CONT} |& tee "${_logfile_base}_${SLURM_JOBID}.log"****"
+##srun --ntasks=1 --nodes='1' enroot import --output ${CONT_FILE} dockerd://${CONT} |& tee "${_logfile_base}_${SLURM_JOBID}.log"
+
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=16
+#SBATCH --gpus=8
+
+echo "****srun --ntasks="$(( SLURM_JOB_NUM_NODES))" --container-image="${CONT}" --container-name="${_cont_name}" true" |tee "${_logfile_base}_${SLURM_JOBID}.log****"
+srun --ntasks="$(( SLURM_JOB_NUM_NODES))" --container-image="${CONT_FILE}" --container-name="${_cont_name}" true | tee "${_logfile_base}_${SLURM_JOBID}.log"
+echo "test1"
+srun --ntasks="$(( SLURM_JOB_NUM_NODES))" --container-image="${CONT_FILE}" --container-name="${_cont_name}" --container-mounts="${_cont_mounts}" ls -lrt /opt/ | tee "~/test{SLURM_JOBID}.log"
+
+##srun  -n $SLURM_JOB_NUM_NODES --ntasks-per-node=1 $DOCKEREXEC --name $CONTNAME $VOLS $CONT bash -c 'sleep infinity'
+##srun  -n $SLURM_JOB_NUM_NODES --ntasks-per-node=1 $DOCKEREXEC --name $CONTNAME $VOLS $CONT bash -c 'sleep infinity'
+
+echo "****srun --ntasks="${SLURM_JOB_NUM_NODES}" bash -c "echo -n 'Clearing cache on ' && hostname && sync && sudo /sbin/sysctl vm.drop_caches=3" |& tee "${_logfile_base}_${SLURM_JOBID}.log"****"
+srun --ntasks="${SLURM_JOB_NUM_NODES}" bash -c "echo -n 'Clearing cache on ' && hostname && sync && sudo /sbin/sysctl vm.drop_caches=3" | tee "${_logfile_base}_${SLURM_JOBID}.log"
+
+
+#srun -l --ntasks="1" --nodes="1" --container-name="${_cont_name}" --container-mounts="${_cont_mounts}" sh -c "/opt/spark/sbin/start-master.sh" |& tee "${_logfile_base}_${SLURM_JOBID}.log"
+echo "****srun -l --ntasks="1" --nodes="1" --container-name="${_cont_name}" --container-mounts="${_cont_mounts}" sh -c "/nfs/spark/conf/spark-env.sh" |& tee "${_logfile_base}_${SLURM_JOBID}.log"****"
+srun -l --ntasks="1" --nodes="1" --container-name="${_cont_name}" --container-mounts="${_cont_mounts}" bash -c "/nfs/spark/conf/spark-env.sh" | tee "${_logfile_base}_${SLURM_JOBID}.log"
+
+echo "****BLAAT****"
+
+srun -l --ntasks="$(( SLURM_JOB_NUM_NODES * SLURM_GPU ))" --ntasks-per-node="${SLURM_GPU}" --container-name="${_cont_name}" --container-mounts="${_cont_mounts}" sh -c '/opt/spark/sbin/start-slave.sh' |& tee "${_logfile_base}_${SLURM_JOBID}.log"
+
+
+sleep infinity

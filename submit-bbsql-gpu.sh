@@ -1,4 +1,6 @@
-##setenv-bbsql-gpu.sh##
+##submit-bbsql-gpu.sh##
+
+. $SPARK_HOME/conf/spark-env.sh
 
 ## BBSQL
 export QUERY='Q5'
@@ -6,8 +8,6 @@ export DRIVER_MEMORY='10240'
 export PARTITIONBYTES='512M'
 export PARTITIONS='64'
 export BROADCASTTHRESHOLD='512M'
-#export TOTAL_CORES=$((${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS}))
-#export RESOURCE_GPU_AMT=$(echo "scale=3; 2 * ${SLURM_NTASKS} / $TOTAL_CORES" | bc)
 
 ## INPUT_PATH="s3a://path_to_data/data/parquet"
 export INPUT_PATH="file:///${MOUNT}/parquet"
@@ -23,6 +23,9 @@ BBSQL_JAR_NAME=bbsql_apps-0.2.2-SNAPSHOT.jar
 JARS_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/rapids-4-spark-integration-tests_2.12-0.1-SNAPSHOT.jar"
 BBSQL_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/bbsql_apps-0.2.2-SNAPSHOT.jar"
 PARQUET_URL="https://cloud.swiftstack.com/v1/AUTH_eric/downloads/1gb-parquet.tar"
+
+mkdir -p $OUTPUT_PATH
+mkdir -p $WAREHOUSE_PATH
 
 export JARS=${MOUNT}/bbsql/${JARS_JAR_NAME}
 export BBSQL=${MOUNT}/bbsql/${BBSQL_JAR_NAME}
@@ -43,12 +46,10 @@ else
     echo "${MOUNT}/parquet/customer exists"
 fi
 
-export MASTER="spark://`hostname`:7077"
-
-export HISTORYPARAMS="--conf spark.eventLog.enabled=true \
+HISTORYPARAMS="--conf spark.eventLog.enabled=true \
         --conf spark.eventLog.dir=file:${SPARK_HOME}/history"
 
-export S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=${S3A_CREDS_USR} \
+S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=${S3A_CREDS_USR} \
         --conf spark.hadoop.fs.s3a.secret.key=${S3A_CREDS_PSW} \
         --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
         --conf spark.hadoop.fs.s3a.endpoint=${S3_ENDPOINT} \
@@ -62,7 +63,7 @@ export S3PARAMS="--conf spark.hadoop.fs.s3a.access.key=${S3A_CREDS_USR} \
         --conf spark.sql.hive.metastorePartitionPruning=true \
         --conf spark.hadoop.fs.s3a.connection.ssl.enabled=true"
 
-export CMDPARAM="--master ${MASTER} \
+CMDPARAM="--master ${MASTER} \
         --deploy-mode client \
         --jars ${JARS} \
         --num-executors ${NUM_EXECUTORS} \
@@ -94,3 +95,11 @@ export CMDPARAM="--master ${MASTER} \
         --conf spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS \
         ${S3PARAMS}"
 
+$SPARK_HOME/bin/spark-submit --verbose \
+        $CMDPARAM \
+        --conf spark.executor.extraJavaOptions="-Dai.rapids.cudf.nvtx.enabled=true -Dai.rapids.cudf.prefer-pinned=true -Dai.rapids.spark.semaphore.enabled=true" \
+        --class ai.rapids.spark.examples.tpcxbb.Main \
+        $BBSQL --xpu=GPU \
+        --query="$QUERY" \
+        --input="$INPUT_PATH" \
+        --output="${OUTPUT_PATH}-gpu/$QUERY"

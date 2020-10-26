@@ -1,0 +1,61 @@
+#!/bin/bash
+#SBATCH --output=outfile-%J
+#SBATCH --partition=batch
+#SBATCH --nodes=2
+#SBATCH --mem-per-cpu=3072
+#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks=2
+#SBATCH --cpus-per-task=16
+##SBATCH --time=60:00
+#SBATCH --gpus=8
+set -eux
+MOUNT=/opt
+MASTER=`hostname`
+echo "$MASTER"
+CONCURRENTGPU='4'
+GPU_PER_NODE=$(( ${SLURM_GPUS} / ${SLURM_JOB_NUM_NODES} ))
+TOTAL_CORES=$(( ${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS} ))
+NUM_EXECUTORS=$SLURM_GPUS
+NUM_EXECUTOR_CORES=$(( ${TOTAL_CORES} / ${NUM_EXECUTORS} ))
+SPARK_WORKER_MEMORY=$(( $TOTAL_CORES * $SLURM_MEM_PER_CPU ))M
+
+RESOURCE_GPU_AMT=$(echo "scale=3; ${NUM_EXECUTORS} / ${TOTAL_CORES}" | bc)
+SPARK_HOME=$MOUNT/spark
+SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
+WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$GPU_PER_NODE -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+
+srun -pdebug --ntasks="${SLURM_JOB_NUM_NODES}" bash -c "echo -n 'Clearing cache on ' && hostname && sync && sudo /sbin/sysctl vm.drop_caches=3" | tee "${_logfile_base}_${SLURM_JOBID}.log"
+
+env=$SPARK_HOME/conf/spark-env.sh
+##echo "#! /bin/bash" > $env
+echo "export SPARK_LOG_DIR=$SPARK_HOME/log" > $env
+echo "export SPARK_WORKER_DIR=$SPARK_HOME/sparkworker" >> $env
+echo "export SLURM_MEM_PER_CPU=$SLURM_MEM_PER_CPU" >> $env
+echo 'export SPARK_WORKER_CORES=`nproc`' >> $env
+echo "export SPARK_WORKER_MEMORY=$SPARK_WORKER_MEMORY" >> $env
+echo "export SPARK_WORKER_OPTS='"$WORKER_OPTS"'" >> $env
+
+sudo chmod 777 $env
+
+scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_HOME/conf/slaves
+
+conf=$SPARK_HOME/conf/spark-defaults.conf
+echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS ))> $conf
+echo "spark.submit.deployMode" client >> $conf
+echo "spark.master" spark://`hostname`:7077 >> $conf
+echo "spark.executor.cores" $NUM_EXECUTOR_CORES >> $conf
+echo "spark.executor.memory" $((( $SLURM_CPUS_PER_TASK * $SLURM_MEM_PER_CPU / $GPU_PER_NODE )))M >> $conf
+
+sudo docker run --runtime=nvidia -v /data/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf --network host -dit --name master gcr.io/data-science-enterprise/spark:3.0.1  /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+###
+sudo docker run --runtime=nvidia -v /data:/data --network host -d -t -i 
+sudo docker run --runtime=nvidia -v /data/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf -v /data:/data --network host -dit --name master
+-e REDIS_NAMESPACE='staging' \
+-e POSTGRES_ENV_POSTGRES_PASSWORD='foo' \
+-e POSTGRES_ENV_POSTGRES_USER='bar' \
+-e POSTGRES_ENV_DB_NAME='mysite_staging' \
+-e POSTGRES_PORT_5432_TCP_ADDR='docker-db-1.hidden.us-east-1.rds.amazonaws.com' \
+-e SITE_URL='staging.mysite.com' \
+-p 80:80 \
+--link redis:redis \
+--name container_name dockerhub_id/image_name

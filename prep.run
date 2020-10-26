@@ -1,0 +1,83 @@
+#!/bin/bash
+set -eux
+
+## Date Format
+DATESTAMP=${DATESTAMP:-`date +'%y%m%d%H%M%S'`}
+
+## Data, container and volumes
+CONT=${CONT:-"gcr.io/data-science-enterprise/spark:3.0.1"}
+MOUNT=${MOUNT:-"/nfs"} 
+LOGDIR=${LOGDIR:-"/nfs/log"}
+SPARK_RAPIDS_DIR=${SPARK_RAPIDS_DIR:-"$MOUNT/sparkRapidsPlugin"}
+
+# Other vars
+#readonly _logfile_base="${LOGDIR}/${DATESTAMP}"
+#readonly _cont_name=spark
+#readonly _cont_mounts="${MOUNT}:/opt/
+_logfile_base="${LOGDIR}/${DATESTAMP}"
+_cont_name="spark"
+_cont_mounts="${MOUNT}:/opt/"
+
+sudo mkdir -p ${LOGDIR}
+sudo chown -R $(id -u):$(id -g) ${LOGDIR}
+
+## Docker params
+##export VOLS="-v $DATADIR:/data -v $LOGDIR:/results"
+##export CONTNAME="${SLURM_JOB_ID}"
+
+##MASTER_IP=`getent hosts \`hostname\` | cut -d ' ' -f1`
+##export hosts=( `scontrol show hostname |tr "\n" " "` )
+##unique_hosts=( $(echo "${hosts[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ' ) )
+##export MASTER_HOST=${hosts[0]}
+
+## Prepull container to shared storage
+mkdir -p ${MOUNT}/containers
+CONT_FILE="${MOUNT}/containers/${CONT}).squashfs"
+
+srun --ntasks=1 --container-imag gcr.io#data-science-enterprise/spark:3.0.1 --container-save ${CONT_FILE} true
+##srun --ntasks=1 --nodes='1' enroot import --output ${CONT_FILE} dockerd://${CONT} |& tee "${_logfile_base}_${SLURM_JOBID}.log"
+##srun --exclusive --nodes=1 --ntasks=1 enroot import --output ${CONT_FILE} dockerd://${CONT} |& tee "${_logfile_base}_${SLURM_JOBID}.log"
+
+## Update JAR names and download URL's
+GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
+CUDF_JAR_NAME="cudf-0.15-cuda11.jar"
+RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.2.0.jar"
+CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.15/cudf-0.15-cuda11.jar"
+SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
+RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.2.0/rapids-4-spark_2.12-0.2.0.jar"
+
+mkdir -p $MOUNT/sparkRapidsPlugin
+
+if [ ! -d "$SPARK_HOME/sbin" ]
+then
+    wget -c ${SPARK_URL} -O - | sudo tar --strip-components=1 --one-top-level=${SPARK_HOME} -xz
+else
+    echo "${SPARK_HOME} exists"
+fi
+
+sudo chown -R $(id -u):$(id -g) ${MOUNT}/spark
+
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/getGpusResources.sh" ]
+then
+    wget -P ${MOUNT}/sparkRapidsPlugin -c ${GET_CPU_RES_URL} && chmod +x ${MOUNT}/sparkRapidsPlugin/getGpusResources.sh
+else
+    echo "getGpusResources.sh exists"
+fi
+
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/${CUDF_JAR_NAME}" ]
+then
+    wget -P ${MOUNT}/sparkRapidsPlugin -c ${CUDF_FILES_URL}
+else
+    echo "${CUDF_JAR_NAME} exists"
+fi
+
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/${RAPIDS_JAR_NAME}" ]
+then
+    wget -P ${MOUNT}/sparkRapidsPlugin -c ${RAPIDS_PLUGIN_URL}
+else
+    echo "${RAPIDS_JAR_NAME} exists"
+fi
+
+
+echo "****Thank you, NEXT!****"
+

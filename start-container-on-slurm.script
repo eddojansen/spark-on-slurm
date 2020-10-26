@@ -1,0 +1,177 @@
+#!/bin/bash
+
+#SBATCH --partition=batch
+#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks=2
+#SBATCH --cpus-per-task=16
+#SBATCH --mem-per-cpu=3072
+##SBATCH --time=60:00
+#SBATCH --output=outfile-%J
+#SBATCH --gpus=8
+set -eux
+
+## JAR names and download URL's
+GET_CPU_RES_URL="https://raw.githubusercontent.com/apache/spark/master/examples/src/main/scripts/getGpusResources.sh"
+CUDF_JAR_NAME="cudf-0.15-cuda11.jar"
+RAPIDS_JAR_NAME="rapids-4-spark_2.12-0.2.0.jar"
+CUDF_FILES_URL="https://repo1.maven.org/maven2/ai/rapids/cudf/0.15/cudf-0.15-cuda11.jar"
+SPARK_URL="https://archive.apache.org/dist/spark/spark-3.0.0/spark-3.0.0-bin-hadoop3.2.tgz"
+RAPIDS_PLUGIN_URL="https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.12/0.2.0/rapids-4-spark_2.12-0.2.0.jar"
+
+## Required variables
+export MOUNT=/data
+export CONCURRENTGPU='4'
+export MASTER="spark://`hostname`:7077"
+export SPARK_HOME=$MOUNT/spark
+export SPARK_LOG_DIR=$SPARK_HOME/log
+export SPARK_CONF_DIR=$SPARK_HOME/conf
+export SPARK_WORKER_DIR=$SPARK_HOME/sparkworker
+export SPARK_WORKER_LOG=$SPARK_HOME/log
+export SPARK_WORKER_CORES=`nproc`
+export SPARK_WORKER_MEMORY=$(( $SPARK_WORKER_CORES * $SLURM_MEM_PER_CPU ))M
+export GPU_PER_NODE=$(( ${SLURM_GPUS} / ${SLURM_JOB_NUM_NODES} ))
+export TOTAL_CORES=$(( ${SLURM_CPUS_PER_TASK} * ${SLURM_NTASKS} ))
+export NUM_EXECUTORS=$SLURM_GPUS
+export NUM_EXECUTOR_CORES=$(( ${TOTAL_CORES} / ${NUM_EXECUTORS} ))
+export RESOURCE_GPU_AMT=$(echo $(( 1000 * ${NUM_EXECUTORS} / ${TOTAL_CORES} )) |sed 's/...$/.&/')
+export SPARK_RAPIDS_DIR=$MOUNT/sparkRapidsPlugin
+export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_DIR/$RAPIDS_JAR_NAME
+export SPARK_CUDF_JAR=$SPARK_RAPIDS_DIR/$CUDF_JAR_NAME
+export WORKER_OPTS="-Dspark.worker.resource.gpu.amount=$GPU_PER_NODE -Dspark.worker.resource.gpu.discoveryScript=$SPARK_RAPIDS_DIR/getGpusResources.sh"
+
+## If Spark binaries are not there download them
+if [ ! -d "$SPARK_HOME/sbin" ]
+then
+    wget -c ${SPARK_URL} -O - | sudo tar --strip-components=1 --one-top-level=${SPARK_HOME} -xz
+else
+    echo "${SPARK_HOME} exists"
+fi
+
+## Change folder permissions so anyone can access and execute
+sudo mkdir -p $SPARK_LOG_DIR
+sudo chown -R $(id -u):$(id -g) ${MOUNT}/spark
+##sudo chmod -R 777 ${MOUNT}/spark
+
+## If gpu resource script is not there download it
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/getGpusResources.sh" ]
+then
+    mkdir -p $MOUNT/sparkRapidsPlugin && wget -P ${MOUNT}/sparkRapidsPlugin -c ${GET_CPU_RES_URL} && chmod +x ${MOUNT}/sparkRapidsPlugin/getGpusResources.sh
+else
+    echo "getGpusResources.sh exists"
+fi
+
+## If sparkRapidsPlugin jars are not there download them
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/${CUDF_JAR_NAME}" ]
+then
+    wget -P ${MOUNT}/sparkRapidsPlugin -c ${CUDF_FILES_URL}
+else
+    echo "${CUDF_JAR_NAME} exists"
+fi
+
+if [ ! -f "${MOUNT}/sparkRapidsPlugin/${RAPIDS_JAR_NAME}" ]
+then
+    wget -P ${MOUNT}/sparkRapidsPlugin -c ${RAPIDS_PLUGIN_URL}
+else
+    echo "${RAPIDS_JAR_NAME} exists"
+fi
+
+srun -pdebug --ntasks="${SLURM_JOB_NUM_NODES}" bash -c "echo -n 'Clearing cache on ' && hostname && sync && sudo /sbin/sysctl vm.drop_caches=3"
+
+scontrol show hostname $SLURM_JOB_NODELIST > $SPARK_HOME/conf/slaves
+
+
+env=$SPARK_HOME/conf/spark-env.sh
+echo "export MOUNT=$MOUNT" > $env
+echo "export CONCURRENTGPU=$CONCURRENTGPU" >> $env
+echo "export MASTER=$MASTER" >> $env
+echo "export SPARK_HOME=$SPARK_HOME" >> $env
+echo "export SPARK_LOG_DIR=$SPARK_LOG_DIR" >> $env
+echo "export SPARK_CONF_DIR=$SPARK_CONF_DIR" >> $env
+echo "export SPARK_WORKER_DIR=$SPARK_WORKER_DIR" >> $env
+echo "export SPARK_WORKER_LOG=$SPARK_WORKER_LOG" >> $env
+echo "export SPARK_WORKER_CORES=$SPARK_WORKER_CORES" >> $env
+echo "export SPARK_WORKER_MEMORY=$SPARK_WORKER_MEMORY" >> $env
+echo "export GPU_PER_NODE=$GPU_PER_NODE" >> $env
+echo "export TOTAL_CORES=$TOTAL_CORES" >> $env
+echo "export NUM_EXECUTORS=$NUM_EXECUTORS" >> $env
+echo "export NUM_EXECUTOR_CORES=$NUM_EXECUTOR_CORES" >> $env
+echo "export RESOURCE_GPU_AMT=$RESOURCE_GPU_AMT" >> $env
+echo "export SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_PLUGIN_JAR" >> $env
+echo "export SPARK_CUDF_JAR=$SPARK_CUDF_JAR" >> $env
+echo "export WORKER_OPTS='$WORKER_OPTS'" >> $env
+
+conf=$SPARK_HOME/conf/spark-defaults.conf
+echo "spark.default.parallelism" $(( $SLURM_CPUS_PER_TASK * $SLURM_NTASKS )) > $conf
+echo "spark.submit.deployMode" client >> $conf
+echo "spark.master" spark://`hostname`:7077 >> $conf
+echo "spark.executor.cores" $NUM_EXECUTOR_CORES >> $conf
+echo "spark.executor.memory" $((( $SLURM_CPUS_PER_TASK * $SLURM_MEM_PER_CPU / $GPU_PER_NODE )))M >> $conf
+echo "spark.driver.memory" 10g
+
+srun -pdebug -n 1 -N 1 --gpus=0 -w `hostname` docker run -dit \
+-e SPARK_HOME=$SPARK_HOME \
+-e SPARK_CONF_DIR=$SPARK_CONF_DIR \
+-v $MOUNT:$MOUNT \
+-v $MOUNT/spark/log:/log \
+--network host \
+--name master \
+--rm \
+--runtime=nvidia \
+gcr.io/data-science-enterprise/spark-master:3.0.1
+
+##-e SPARK_LOG_DIR=$SPARK_LOG_DIR \
+##-e SPARK_WORKER_LOG=$SPARK_WORKER_LOG \
+##--user $(id -u) \
+
+srun -pdebug -n $SLURM_JOB_NUM_NODES --ntasks-per-node=1 docker run -dit \
+-e MASTER=$MASTER \
+-e SPARK_HOME=$SPARK_HOME \
+-e SPARK_CONF_DIR=$SPARK_CONF_DIR \
+-e RESOURCE_GPU_AMT="$RESOURCE_GPU_AMT" \
+-e SPARK_WORKER_DIR=$SPARK_WORKER_DIR \
+-e SPARK_WORKER_CORES=`nproc` \
+-e SPARK_WORKER_MEMORY=$SPARK_WORKER_MEMORY \
+-e SPARK_WORKER_OPTS="$WORKER_OPTS" \
+-e SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_PLUGIN_JAR \
+-e SPARK_CUDF_JAR=$SPARK_CUDF_JAR \
+-v $MOUNT:$MOUNT \
+-v $MOUNT/spark/log:/log \
+--network host \
+--name worker \
+--rm \
+--runtime=nvidia \
+gcr.io/data-science-enterprise/spark-worker:3.0.1 
+
+srun -pdebug -n 1 -N 1 --gpus=0 -w `hostname` bash -c  echo `hostname` && $SPARK_HOME/sbin/wait-worker.sh
+
+echo "All workers registered!"
+
+srun -pdebug -n 1 -N 1 --gpus=0 docker run -dit \
+-e MOUNT=$MOUNT \
+-e MASTER=$MASTER \
+-e SPARK_HOME=$SPARK_HOME \
+-e SPARK_CONF_DIR=$SPARK_CONF_DIR \
+-e RESOURCE_GPU_AMT="$RESOURCE_GPU_AMT" \
+-e SPARK_WORKER_DIR=$SPARK_WORKER_DIR \
+-e SPARK_WORKER_CORES=`nproc` \
+-e SPARK_WORKER_MEMORY=$SPARK_WORKER_MEMORY \
+-e SPARK_WORKER_OPTS="$WORKER_OPTS" \
+-e SPARK_RAPIDS_PLUGIN_JAR=$SPARK_RAPIDS_PLUGIN_JAR \
+-e SPARK_CUDF_JAR=$SPARK_CUDF_JAR \
+-v $MOUNT:$MOUNT \
+-v $MOUNT/spark/log:/log \
+--network host \
+--name submit \
+--rm \
+--runtime=nvidia \
+gcr.io/data-science-enterprise/spark-submit:0.1 \
+bash &
+
+echo "test complete"
+
+sleep infinity
+
+##srun -pdebug -n 1 -N 1 --gpus=0 docker kill master
+##srun -pdebug -n $SLURM_JOB_NUM_NODES --ntasks-per-node=1 --gpus=0 docker kill worker
+
+##sleep infinity
